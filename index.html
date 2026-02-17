@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Math Shooter: Level Up</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+        }
+        canvas { display: block; }
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between;
+            padding: 20px;
+        }
+        .hud-text {
+            font-size: 1.5rem; font-weight: bold;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
+        }
+        #start-screen, #game-over-screen, #clear-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 10; pointer-events: auto; backdrop-filter: blur(5px);
+        }
+        .btn {
+            background: linear-gradient(45deg, #00f260, #0575e6);
+            border: none; padding: 15px 30px; color: white;
+            font-size: 1.1rem; border-radius: 15px; cursor: pointer; margin: 10px;
+            box-shadow: 0 0 15px rgba(0, 242, 96, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s; 
+            text-transform: uppercase; font-weight: 800;
+            width: 280px; text-align: center;
+        }
+        .btn:hover { transform: scale(1.05); box-shadow: 0 0 25px rgba(0, 242, 96, 0.6); }
+        .btn-sub {
+            display: block; font-size: 0.8rem; font-weight: normal; 
+            color: rgba(255,255,255,0.8); margin-top: 5px;
+        }
+        .hidden { display: none !important; }
+        
+        /* 쉐이크 효과 */
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+        .shake { animation: shake 0.5s; color: #ff0055 !important; }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="flex justify-between w-full max-w-4xl mx-auto items-start">
+            <div class="hud-text text-left">
+                <div style="color: #00ffff;">TARGET: <span id="targetEl">10</span></div>
+                <div style="color: #ffeb3b; margin-top: 5px;">CURRENT: <span id="currentEl">0</span></div>
+            </div>
+            <div class="hud-text text-right">
+                <div style="color: #ff0055;">HP: <span id="hpEl">100</span>%</div>
+                <div style="font-size: 1rem; color: #aaa; margin-top: 5px;">
+                    LEVEL <span id="levelEl">1</span>
+                    <span id="modeDisplay" style="font-size: 0.8rem; display:block; color:#00f260;"></span>
+                </div>
+            </div>
+        </div>
+        <!-- 중앙 메시지 영역 -->
+        <div id="message-area" class="text-center text-5xl font-black text-white drop-shadow-lg opacity-0 transition-opacity duration-300 transform scale-150">
+            LEVEL UP!
+        </div>
+    </div>
+
+    <!-- 시작 화면 (난이도 선택) -->
+    <div id="start-screen">
+        <h1 class="text-6xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-red-600 filter drop-shadow-lg text-center">
+            MATH SHOOTER
+        </h1>
+        <p class="text-gray-300 mb-8 text-center text-sm">목표 숫자를 맞춰라! (10 ~ 100)</p>
+        
+        <button class="btn" onclick="startGame('easy')">
+            워밍업
+            <span class="btn-sub">기초를 탄탄히! (느림)</span>
+        </button>
+        <button class="btn" style="background: linear-gradient(45deg, #0575e6, #00f260);" onclick="startGame('normal')">
+            실전
+            <span class="btn-sub">실전=경쟁력! (보통)</span>
+        </button>
+        <button class="btn" style="background: linear-gradient(45deg, #ff0055, #ffcc00);" onclick="startGame('hard')">
+            몰입
+            <span class="btn-sub">무아지경 (빠름)</span>
+        </button>
+    </div>
+
+    <!-- 게임 오버 화면 -->
+    <div id="game-over-screen" class="hidden">
+        <h2 class="text-5xl font-black text-red-500 mb-2 drop-shadow-lg">GAME OVER</h2>
+        <p class="text-2xl text-white mb-6">최종 레벨: <span id="finalLevel">1</span></p>
+        <button class="btn" id="restartBtn">메인으로</button>
+    </div>
+
+    <!-- 클리어 화면 -->
+    <div id="clear-screen" class="hidden">
+        <h2 class="text-6xl font-black text-yellow-400 mb-4 drop-shadow-lg">MISSION COMPLETE!</h2>
+        <p class="text-xl text-white mb-8">모든 훈련을 완수했습니다.</p>
+        <button class="btn" id="finalRestartBtn">처음으로 돌아가기</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // UI 요소
+        const targetEl = document.getElementById('targetEl');
+        const currentEl = document.getElementById('currentEl');
+        const hpEl = document.getElementById('hpEl');
+        const levelEl = document.getElementById('levelEl');
+        const modeDisplay = document.getElementById('modeDisplay');
+        const messageArea = document.getElementById('message-area');
+        
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const clearScreen = document.getElementById('clear-screen');
+        const finalLevelEl = document.getElementById('finalLevel');
+
+        // 게임 설정 (난이도)
+        const DIFFICULTY = {
+            easy: { name: "워밍업", speed: 1.0, accel: 0.1 },   // 거의 안 빨라짐
+            normal: { name: "실전", speed: 2.5, accel: 0.3 },   // 적당히 빨라짐
+            hard: { name: "몰입", speed: 4.5, accel: 0.5 }      // 매우 빠름
+        };
+
+        // 게임 상태
+        let currentMode = 'normal';
+        let gameActive = false;
+        let animationId;
+        let frames = 0;
+        let timeScale = 1.0; // 시간 조절 변수 (1.0 = 정상, 0.1 = 슬로우)
+        let flashAlpha = 0;  // 화면 번쩍임 효과
+        
+        let player;
+        let projectiles = [];
+        let numbers = [];
+        let particles = [];
+        let stars = [];
+
+        let currentSum = 0;
+        let targetNum = 10;
+        let level = 1;
+        
+        let keys = { ArrowRight: false, ArrowLeft: false, ArrowUp: false, ArrowDown: false, Space: false };
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // ---------------- 클래스 ----------------
+
+        class Player {
+            constructor() {
+                this.width = 40; this.height = 50;
+                this.x = canvas.width / 2; this.y = canvas.height - 100;
+                this.velocity = { x: 0, y: 0 }; this.speed = 7;
+                this.color = '#00ffff'; this.hp = 100; this.radius = 20;
+            }
+            draw() {
+                ctx.save(); ctx.translate(this.x, this.y);
+                ctx.beginPath(); ctx.moveTo(0, -this.height / 2); ctx.lineTo(this.width / 2, this.height / 2);
+                ctx.lineTo(0, this.height / 3); ctx.lineTo(-this.width / 2, this.height / 2); ctx.closePath();
+                ctx.shadowColor = this.color; ctx.shadowBlur = 15; ctx.fillStyle = this.color; ctx.fill();
+                ctx.restore();
+            }
+            update() {
+                this.draw();
+                // 플레이어 이동 (timeScale 영향 없음 - 조작감 유지)
+                if (this.x - this.width/2 < 0) this.x = this.width/2;
+                if (this.x + this.width/2 > canvas.width) this.x = canvas.width - this.width/2;
+                if (this.y - this.height/2 < 0) this.y = this.height/2;
+                if (this.y + this.height/2 > canvas.height) this.y = canvas.height - this.height/2;
+                
+                this.x += this.velocity.x; 
+                this.y += this.velocity.y;
+            }
+        }
+
+        class NumberBlock {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.value = Math.floor(Math.random() * 9) + 1;
+                this.width = 40; this.height = 40;
+                
+                // 속도 공식: 기본속도 + (레벨 * 가속도)
+                const settings = DIFFICULTY[currentMode];
+                const baseSpeed = settings.speed + (level * settings.accel);
+                
+                this.velocity = { x: 0, y: baseSpeed };
+                this.radius = 20;
+                const colors = ['#fff', '#ff5252', '#ffeb3b', '#4caf50', '#2196f3', '#9c27b0', '#e040fb', '#ff9800', '#795548', '#607d8b'];
+                this.color = colors[this.value];
+            }
+            draw() {
+                ctx.save(); ctx.translate(this.x, this.y);
+                
+                ctx.beginPath();
+                ctx.rect(-this.width/2, -this.height/2, this.width, this.height);
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.shadowColor = this.color; ctx.shadowBlur = 10;
+                
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 24px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.value, 0, 2);
+                
+                ctx.restore();
+            }
+            update() {
+                this.draw();
+                // 슬로우 모션 영향 받음
+                this.y += this.velocity.y * timeScale;
+            }
+        }
+
+        class Projectile {
+            constructor(x, y) {
+                this.x = x; this.y = y; 
+                this.velocity = { x: 0, y: -15 }; 
+                this.radius = 4; this.color = '#ffcc00';
+            }
+            draw() {
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+                ctx.fillStyle = this.color; ctx.fill();
+            }
+            update() { 
+                this.draw(); 
+                // 총알도 슬로우 모션 영향 받음 (극적인 연출을 위해)
+                this.x += this.velocity.x * timeScale; 
+                this.y += this.velocity.y * timeScale; 
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y;
+                this.velocity = { x: (Math.random() - 0.5) * 6, y: (Math.random() - 0.5) * 6 };
+                this.radius = Math.random() * 3; this.color = color; this.alpha = 1; this.friction = 0.95;
+            }
+            update() {
+                this.draw();
+                // 폭발 효과도 느려짐
+                const currentFriction = 1 - ((1 - this.friction) * timeScale);
+                
+                this.velocity.x *= currentFriction; 
+                this.velocity.y *= currentFriction;
+                this.x += this.velocity.x * timeScale; 
+                this.y += this.velocity.y * timeScale;
+                this.alpha -= 0.03 * timeScale;
+            }
+            draw() {
+                ctx.save(); ctx.globalAlpha = this.alpha; ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color; ctx.fill(); ctx.restore();
+            }
+        }
+        
+        class Star {
+            constructor() {
+                this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height;
+                this.radius = Math.random() * 1.5; this.velocity = { x: 0, y: Math.random() * 2 + 0.5 }; this.alpha = Math.random();
+            }
+            draw() { ctx.save(); ctx.globalAlpha = this.alpha; ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); ctx.fillStyle = 'white'; ctx.fill(); ctx.restore(); }
+            update() { 
+                this.draw(); 
+                this.y += this.velocity.y * timeScale; // 배경도 느려짐
+                if (this.y > canvas.height) { this.y = 0; this.x = Math.random() * canvas.width; } 
+            }
+        }
+
+        // ---------------- 게임 로직 ----------------
+
+        function startGame(mode) {
+            currentMode = mode;
+            modeDisplay.innerText = `${DIFFICULTY[mode].name} 모드`;
+            startScreen.classList.add('hidden');
+            init();
+        }
+
+        function init() {
+            player = new Player();
+            projectiles = [];
+            numbers = [];
+            particles = [];
+            
+            currentSum = 0;
+            level = 1;
+            targetNum = 10;
+            timeScale = 1.0;
+            flashAlpha = 0;
+            
+            updateUI();
+            
+            gameActive = true;
+            animate();
+        }
+
+        function spawnNumbers() {
+            // 난이도별 생성 빈도 (Hard는 조금 더 자주 나옴)
+            let spawnRate = 40;
+            if (currentMode === 'hard') spawnRate = 30;
+            if (currentMode === 'easy') spawnRate = 50;
+
+            if (frames % spawnRate === 0) {
+                const radius = 20;
+                let x = Math.random() * (canvas.width - radius * 2) + radius;
+                numbers.push(new NumberBlock(x, -50));
+            }
+        }
+
+        function showMessage(text, color = 'white', isShake = false) {
+            messageArea.innerText = text;
+            messageArea.style.color = color;
+            messageArea.style.opacity = 1;
+            messageArea.classList.remove('scale-150');
+            void messageArea.offsetWidth; // Trigger reflow
+            messageArea.classList.add('scale-150');
+            
+            if (isShake) {
+                currentEl.classList.add('shake');
+                setTimeout(() => currentEl.classList.remove('shake'), 500);
+            }
+
+            setTimeout(() => {
+                messageArea.style.opacity = 0;
+            }, 1500);
+        }
+
+        function triggerLevelClearEffect() {
+            // 슬로우 모션 시작
+            timeScale = 0.1;
+            
+            // 0.5초(실제시간) 후 화면 섬광 및 레벨업 처리
+            setTimeout(() => {
+                flashAlpha = 1.0; // 섬광 시작
+                
+                // 실제 레벨업 로직
+                if (targetNum >= 100) {
+                    gameClear();
+                } else {
+                    level++;
+                    targetNum += 10;
+                    currentSum = 0;
+                    showMessage(`LEVEL ${level} START!`, '#00ffff');
+                    
+                    // 폭죽 효과
+                    for(let i=0; i<20; i++) {
+                        particles.push(new Particle(canvas.width/2, canvas.height/2, 'white'));
+                    }
+                    numbers = []; // 화면 정리
+                }
+                
+                // 시간 정상화
+                timeScale = 1.0;
+                
+            }, 600);
+        }
+
+        function checkLevelProgress(addValue) {
+            // 미리 계산해서 정확히 맞는지 확인
+            if (currentSum + addValue === targetNum) {
+                currentSum += addValue;
+                updateUI();
+                triggerLevelClearEffect(); // 연출 발동
+            } else if (currentSum + addValue > targetNum) {
+                // 초과 (버스트) - 연출 없음
+                currentSum = 0;
+                showMessage("BUSTED! RESET", '#ff0055', true);
+                updateUI();
+            } else {
+                // 아직 모자람
+                currentSum += addValue;
+                updateUI();
+            }
+        }
+
+        function updateUI() {
+            targetEl.innerText = targetNum;
+            currentEl.innerText = currentSum;
+            hpEl.innerText = player.hp;
+            levelEl.innerText = level;
+            
+            if (currentSum > targetNum * 0.8) currentEl.style.color = '#ff9800';
+            else currentEl.style.color = '#ffeb3b';
+        }
+
+        function animate() {
+            if (!gameActive) return;
+            animationId = requestAnimationFrame(animate);
+            
+            // 배경 그리기
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            stars.forEach(star => star.update());
+
+            // 플레이어
+            if (keys.ArrowRight && player.x < canvas.width - player.width/2) player.velocity.x = player.speed;
+            else if (keys.ArrowLeft && player.x > player.width/2) player.velocity.x = -player.speed;
+            else player.velocity.x = 0;
+            
+            if (keys.ArrowUp && player.y > player.height/2) player.velocity.y = -player.speed;
+            else if (keys.ArrowDown && player.y < canvas.height - player.height/2) player.velocity.y = player.speed;
+            else player.velocity.y = 0;
+            
+            player.update();
+
+            // 입자
+            particles.forEach((p, i) => {
+                if (p.alpha <= 0) particles.splice(i, 1);
+                else p.update();
+            });
+
+            // 총알
+            projectiles.forEach((p, i) => {
+                p.update();
+                if (p.y < 0) setTimeout(() => projectiles.splice(i, 1), 0);
+            });
+
+            // 숫자 블록
+            numbers.forEach((numBlock, i) => {
+                numBlock.update();
+
+                // 1. 총알과 충돌
+                projectiles.forEach((p, pIndex) => {
+                    const dist = Math.hypot(p.x - numBlock.x, p.y - numBlock.y);
+                    if (dist - numBlock.radius - p.radius < 1) {
+                        // 이펙트
+                        for (let k = 0; k < 8; k++) particles.push(new Particle(numBlock.x, numBlock.y, numBlock.color));
+                        
+                        // 로직: 총알을 맞췄을 때 바로 더하지 않고, checkLevelProgress로 넘김
+                        // 제거 먼저
+                        setTimeout(() => {
+                            numbers.splice(i, 1);
+                            projectiles.splice(pIndex, 1);
+                        }, 0);
+                        
+                        checkLevelProgress(numBlock.value);
+                    }
+                });
+
+                // 2. 플레이어와 충돌 (데미지)
+                const distPlayer = Math.hypot(player.x - numBlock.x, player.y - numBlock.y);
+                if (distPlayer - numBlock.radius - player.radius < 1) {
+                    for (let k = 0; k < 10; k++) particles.push(new Particle(player.x, player.y, 'red'));
+                    player.hp -= 20; 
+                    updateUI();
+                    numbers.splice(i, 1);
+                    if (player.hp <= 0) gameOver();
+                }
+
+                if (numBlock.y > canvas.height + 50) {
+                    numbers.splice(i, 1);
+                }
+            });
+
+            spawnNumbers();
+            
+            // 섬광 효과 그리기 (가장 위에)
+            if (flashAlpha > 0) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                flashAlpha -= 0.05; // 서서히 사라짐
+                if (flashAlpha < 0) flashAlpha = 0;
+            }
+
+            frames++;
+        }
+
+        function shoot() {
+            projectiles.push(new Projectile(player.x, player.y - 20));
+        }
+
+        function gameOver() {
+            gameActive = false;
+            finalLevelEl.innerText = level;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        function gameClear() {
+            gameActive = false;
+            clearScreen.classList.remove('hidden');
+        }
+
+        // --- 이벤트 리스너 ---
+        for (let i = 0; i < 50; i++) stars.push(new Star());
+
+        window.addEventListener('keydown', e => {
+            if (e.code === 'Space') { if(gameActive) shoot(); keys.Space = true; }
+            if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
+        });
+        window.addEventListener('keyup', e => {
+            if (e.code === 'Space') keys.Space = false;
+            if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
+        });
+
+        window.addEventListener('touchstart', (e) => {
+             if (!gameActive) return;
+             const t = e.touches[0];
+             player.x = t.clientX;
+             shoot();
+        });
+        window.addEventListener('touchmove', (e) => {
+            if (!gameActive) return;
+            e.preventDefault();
+            player.x = e.touches[0].clientX;
+        }, {passive: false});
+
+        // 재시작 버튼들
+        document.getElementById('restartBtn').addEventListener('click', () => {
+            gameOverScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden'); // 난이도 선택으로 돌아감
+        });
+        document.getElementById('finalRestartBtn').addEventListener('click', () => {
+            clearScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+        });
+
+    </script>
+</body>
+</html>
