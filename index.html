@@ -21,26 +21,20 @@
             pointer-events: none;
             display: flex; flex-direction: column; justify-content: space-between;
             padding: 20px;
+            z-index: 10;
         }
         .hud-text {
             font-size: 1.5rem; font-weight: bold;
             text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
         }
         
-        /* 사운드 버튼 스타일 */
         #sound-control {
-            pointer-events: auto;
-            cursor: pointer;
-            font-size: 1.5rem;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 10px;
-            border-radius: 50%;
-            border: 2px solid #00f260;
+            pointer-events: auto; cursor: pointer;
+            font-size: 1.5rem; background: rgba(0, 0, 0, 0.5);
+            padding: 10px; border-radius: 50%; border: 2px solid #00f260;
             width: 50px; height: 50px;
             display: flex; justify-content: center; align-items: center;
-            transition: transform 0.2s;
-            margin-bottom: 10px;
-            user-select: none;
+            transition: transform 0.2s; margin-bottom: 10px; user-select: none;
         }
         #sound-control:hover { transform: scale(1.1); background: rgba(0, 242, 96, 0.2); }
 
@@ -48,8 +42,12 @@
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.85);
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 10; pointer-events: auto; backdrop-filter: blur(5px);
+            z-index: 30; /* UI보다 높게 */
+            pointer-events: auto; backdrop-filter: blur(5px);
         }
+        /* 클리어 화면이 최상단 */
+        #clear-screen { z-index: 50; }
+
         .btn {
             background: linear-gradient(45deg, #00f260, #0575e6);
             border: none; padding: 15px 30px; color: white;
@@ -66,11 +64,10 @@
         }
         .hidden { display: none !important; }
 
-        /* 카운트다운 애니메이션 */
         #countdown-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; justify-content: center; align-items: center;
-            pointer-events: none; z-index: 5;
+            pointer-events: none; z-index: 20;
         }
         .countdown-number {
             font-size: 10rem; font-weight: 900; color: #fff;
@@ -83,7 +80,6 @@
             100% { transform: scale(1); opacity: 0; }
         }
         
-        /* 쉐이크 효과 */
         @keyframes shake {
             0% { transform: translate(1px, 1px) rotate(0deg); }
             10% { transform: translate(-1px, -2px) rotate(-1deg); }
@@ -102,9 +98,10 @@
 </head>
 <body>
 
-    <!-- 오디오 태그: 사이버펑크 스타일 BGM (볼륨 조절을 위해 JS 제어) -->
+    <!-- [수정] 호환성 좋은 MP3 파일로 교체 (Synthwave Style) -->
     <audio id="bgm" loop>
-        <source src="https://cdn.pixabay.com/audio/2022/03/15/audio_c8c8a73467.mp3" type="audio/mpeg">
+        <!-- Royalty Free Music from Pixabay -->
+        <source src="https://cdn.pixabay.com/audio/2021/11/24/audio_8234851224.mp3" type="audio/mpeg">
     </audio>
 
     <canvas id="gameCanvas"></canvas>
@@ -117,32 +114,29 @@
             </div>
             
             <div class="flex flex-col items-end">
-                <!-- 사운드 컨트롤 버튼 -->
                 <div id="sound-control" onclick="toggleSound()">🔇</div>
                 
                 <div class="hud-text text-right">
                     <div style="color: #ff0055;">HP: <span id="hpEl">100</span>%</div>
                     <div style="font-size: 1rem; color: #aaa; margin-top: 5px;">
-                        LEVEL <span id="levelEl">1</span>
+                        LEVEL <span id="levelEl">1 / 10</span>
                         <span id="modeDisplay" style="font-size: 0.8rem; display:block; color:#00f260;"></span>
                     </div>
                 </div>
             </div>
         </div>
-        <!-- 중앙 메시지 영역 -->
         <div id="message-area" class="text-center text-5xl font-black text-white drop-shadow-lg opacity-0 transition-opacity duration-300 transform scale-150">
             LEVEL UP!
         </div>
-        <!-- 카운트다운 영역 -->
         <div id="countdown-overlay"></div>
     </div>
 
-    <!-- 시작 화면 (난이도 선택) -->
+    <!-- 시작 화면 -->
     <div id="start-screen">
         <h1 class="text-6xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-red-600 filter drop-shadow-lg text-center">
             MATH SHOOTER
         </h1>
-        <p class="text-gray-300 mb-8 text-center text-sm">목표 숫자를 맞춰라! (10 ~ 100)</p>
+        <p class="text-gray-300 mb-8 text-center text-sm">총 10단계 (Target 100)를 모두 클리어하세요!</p>
         
         <button class="btn" onclick="startGame('easy')">
             워밍업
@@ -158,14 +152,12 @@
         </button>
     </div>
 
-    <!-- 게임 오버 화면 -->
     <div id="game-over-screen" class="hidden">
         <h2 class="text-5xl font-black text-red-500 mb-2 drop-shadow-lg">GAME OVER</h2>
-        <p class="text-2xl text-white mb-6">최종 레벨: <span id="finalLevel">1</span></p>
+        <p class="text-2xl text-white mb-6">최종 레벨: <span id="finalLevel">1</span> / 10</p>
         <button class="btn" id="restartBtn">메인으로</button>
     </div>
 
-    <!-- 클리어 화면 (동적 변경 예정) -->
     <div id="clear-screen" class="hidden">
         <h2 id="clearTitle" class="text-6xl font-black mb-4 drop-shadow-lg">CONGRATULATIONS!</h2>
         <p id="clearDesc" class="text-xl text-white mb-8 text-center px-4 leading-relaxed">...</p>
@@ -176,7 +168,6 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        // UI 요소
         const targetEl = document.getElementById('targetEl');
         const currentEl = document.getElementById('currentEl');
         const hpEl = document.getElementById('hpEl');
@@ -194,18 +185,15 @@
         const clearTitle = document.getElementById('clearTitle');
         const clearDesc = document.getElementById('clearDesc');
         
-        // 오디오 요소
         const bgm = document.getElementById('bgm');
         let isSoundOn = false;
 
-        // 난이도 설정
         const DIFFICULTY = {
             easy: { name: "워밍업", speed: 0.8, accel: 0.05 },
             normal: { name: "실전", speed: 1.5, accel: 0.1 },
             hard: { name: "몰입", speed: 3.0, accel: 0.2 }
         };
 
-        // 피날레 설정
         const FINALE_CONFIG = {
             easy: {
                 title: "HEALING COMPLETE",
@@ -227,10 +215,10 @@
             }
         };
 
-        // 게임 상태 변수
         let currentMode = 'normal';
         let gameActive = false;
-        let isTransitioning = false; 
+        let isTransitioning = false;
+        let isLevelClearing = false;
         let animationId;
         let frames = 0;
         let timeScale = 1.0;
@@ -256,13 +244,15 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // ---------------- 사운드 로직 ----------------
         function toggleSound() {
             isSoundOn = !isSoundOn;
             updateSoundIcon();
             if (isSoundOn) {
                 bgm.volume = 0.5;
-                bgm.play().catch(e => console.log("Audio play failed:", e));
+                const playPromise = bgm.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => { console.log("Audio prevented:", error); });
+                }
             } else {
                 bgm.pause();
             }
@@ -274,23 +264,43 @@
         }
 
         // ---------------- 클래스 ----------------
-
         class Player {
             constructor() {
                 this.width = 40; this.height = 50;
                 this.x = canvas.width / 2; this.y = canvas.height - 100;
                 this.velocity = { x: 0, y: 0 }; this.speed = 7;
-                this.color = '#00ffff'; this.hp = 100; this.radius = 20;
+                this.color = '#00ffff'; 
+                this.hp = 100; 
+                this.radius = 20;
+                
+                // [신규] 피격 시 빨간 깜빡임 효과용 타이머
+                this.damageBlinkTimer = 0; 
             }
             draw() {
                 ctx.save(); ctx.translate(this.x, this.y);
+                
+                // [신규] 깜빡임 로직: 타이머가 켜져있고, 10프레임 간격으로 색상 변경
+                let fillColor = this.color;
+                if (this.damageBlinkTimer > 0) {
+                    // 60프레임 기준 10프레임마다 빨강/원래색 전환
+                    if (Math.floor(this.damageBlinkTimer / 5) % 2 === 0) {
+                        fillColor = '#ff0000'; // 빨간색
+                    }
+                }
+
                 ctx.beginPath(); ctx.moveTo(0, -this.height / 2); ctx.lineTo(this.width / 2, this.height / 2);
                 ctx.lineTo(0, this.height / 3); ctx.lineTo(-this.width / 2, this.height / 2); ctx.closePath();
-                ctx.shadowColor = this.color; ctx.shadowBlur = 15; ctx.fillStyle = this.color; ctx.fill();
+                ctx.shadowColor = fillColor; ctx.shadowBlur = 15; 
+                ctx.fillStyle = fillColor; 
+                ctx.fill();
                 ctx.restore();
             }
             update() {
                 this.draw();
+                
+                // 데미지 타이머 감소
+                if (this.damageBlinkTimer > 0) this.damageBlinkTimer--;
+
                 if (this.x - this.width/2 < 0) this.x = this.width/2;
                 if (this.x + this.width/2 > canvas.width) this.x = canvas.width - this.width/2;
                 if (this.y - this.height/2 < 0) this.y = this.height/2;
@@ -300,6 +310,10 @@
                     this.x += this.velocity.x; 
                     this.y += this.velocity.y;
                 }
+            }
+            // 데미지 입었을 때 호출
+            hit() {
+                this.damageBlinkTimer = 40; // 약 0.7초간 깜빡임
             }
         }
 
@@ -342,7 +356,7 @@
                 this.x = x; this.y = y; 
                 this.velocity = { x: 0, y: -15 }; 
                 this.radius = 4; this.color = '#ffcc00';
-                this.markedForDeletion = false; // [수정] 즉시 삭제 플래그
+                this.markedForDeletion = false; 
             }
             draw() {
                 ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
@@ -441,10 +455,8 @@
             modeDisplay.innerText = `${DIFFICULTY[mode].name} 모드`;
             startScreen.classList.add('hidden');
             
-            // 게임 시작 시 사운드 자동 켜기 (사용자 제스처로 간주)
-            if (!isSoundOn) {
-                toggleSound();
-            }
+            // 게임 시작 시 사운드 켜기 시도
+            if (!isSoundOn) { toggleSound(); }
             
             init();
         }
@@ -462,6 +474,7 @@
             timeScale = 1.0;
             flashAlpha = 0;
             isTransitioning = false;
+            isLevelClearing = false;
             
             updateUI();
             
@@ -513,7 +526,8 @@
                     countdownOverlay.innerHTML = `<div class="countdown-number" style="color:#00f260; font-size:6rem;">START!</div>`;
                     setTimeout(() => {
                         countdownOverlay.innerHTML = '';
-                        isTransitioning = false; 
+                        isTransitioning = false;
+                        isLevelClearing = false;
                         showMessage(`LEVEL ${level} GO!`, '#00ffff');
                     }, 1000);
                 }
@@ -523,10 +537,12 @@
 
         function triggerLevelClearEffect() {
             timeScale = 0.1;
+            isLevelClearing = true; // 무적 & 정지
             
             setTimeout(() => {
-                flashAlpha = 1.0; 
+                flashAlpha = 0; // 섬광 제거 (사용자 요청)
                 
+                // [중요] 피날레 로직 수정: 100 이상이면 무조건 클리어 처리
                 if (targetNum >= 100) {
                     gameClear();
                 } else {
@@ -551,6 +567,8 @@
         }
 
         function checkLevelProgress(addValue) {
+            if (isLevelClearing) return; 
+
             if (currentSum + addValue === targetNum) {
                 currentSum += addValue;
                 updateUI();
@@ -569,7 +587,7 @@
             targetEl.innerText = targetNum;
             currentEl.innerText = currentSum;
             hpEl.innerText = player.hp;
-            levelEl.innerText = level;
+            levelEl.innerText = `${level} / 10`;
             
             if (currentSum > targetNum * 0.8) currentEl.style.color = '#ff9800';
             else currentEl.style.color = '#ffeb3b';
@@ -599,62 +617,47 @@
 
             confettiList.forEach(c => c.update());
 
-            // 총알 이동
             projectiles.forEach((p, i) => {
                 p.update();
             });
-            // 화면 밖 총알 정리
             projectiles = projectiles.filter(p => p.y + p.radius > 0 && !p.markedForDeletion);
 
-            // [수정] 충돌 처리 로직 개선 (동기식 처리로 중복 피격 방지)
-            // 숫자 블록을 뒤에서부터 순회하여 splice 안전하게 사용
             for (let i = numbers.length - 1; i >= 0; i--) {
                 const numBlock = numbers[i];
                 numBlock.update();
                 
                 let blockHit = false;
 
-                // 총알 충돌 체크
                 for (let j = projectiles.length - 1; j >= 0; j--) {
                     const p = projectiles[j];
-                    // 이미 다른 블록에 맞은 총알은 패스
                     if (p.markedForDeletion) continue;
 
                     const dist = Math.hypot(p.x - numBlock.x, p.y - numBlock.y);
                     if (dist - numBlock.radius - p.radius < 1) {
-                        // 명중!
-                        p.markedForDeletion = true; // 총알 즉시 사망 처리
+                        p.markedForDeletion = true; 
                         blockHit = true;
-                        
-                        // 이펙트
                         for (let k = 0; k < 8; k++) particles.push(new Particle(numBlock.x, numBlock.y, numBlock.color));
-                        
-                        // 로직 실행 (점수 합산 등)
                         checkLevelProgress(numBlock.value);
-                        
-                        // 총알 하나에 블록 하나만 맞아야 하므로, 블록이 맞았으면 더 이상 총알 검사 중단
                         break; 
                     }
                 }
 
-                // 플레이어 충돌 체크
                 if (!blockHit) {
                     const distPlayer = Math.hypot(player.x - numBlock.x, player.y - numBlock.y);
-                    if (distPlayer - numBlock.radius - player.radius < 1) {
+                    if (!isLevelClearing && distPlayer - numBlock.radius - player.radius < 1) {
                         for (let k = 0; k < 10; k++) particles.push(new Particle(player.x, player.y, 'red'));
                         player.hp -= 20; 
+                        player.hit(); // [신규] 깜빡임 효과 발동
                         updateUI();
                         blockHit = true;
                         if (player.hp <= 0) gameOver();
                     }
                 }
                 
-                // 화면 밖 체크
                 if (numBlock.y > canvas.height + 50) {
-                    blockHit = true; // 제거하기 위해 true
+                    blockHit = true; 
                 }
 
-                // 블록 제거 (충돌했거나 화면 밖으로 나갔으면)
                 if (blockHit) {
                     numbers.splice(i, 1);
                 }
@@ -679,7 +682,7 @@
 
         function gameOver() {
             gameActive = false;
-            finalLevelEl.innerText = level;
+            finalLevelEl.innerText = `${level} / 10`;
             gameOverScreen.classList.remove('hidden');
         }
 
@@ -699,7 +702,6 @@
             isTransitioning = true; 
         }
 
-        // --- 이벤트 리스너 ---
         for (let i = 0; i < 50; i++) stars.push(new Star());
 
         window.addEventListener('keydown', e => {
@@ -712,7 +714,10 @@
         });
 
         window.addEventListener('touchstart', (e) => {
+             if (gameActive && !isSoundOn) {
+             }
              if (!gameActive) return;
+             
              const t = e.touches[0];
              player.x = t.clientX;
              shoot();
