@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Math Shooter: Level Up</title>
+    <title>Math Shooter: Grand Master</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -26,6 +26,24 @@
             font-size: 1.5rem; font-weight: bold;
             text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
         }
+        
+        /* 사운드 버튼 스타일 */
+        #sound-control {
+            pointer-events: auto;
+            cursor: pointer;
+            font-size: 1.5rem;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 50%;
+            border: 2px solid #00f260;
+            width: 50px; height: 50px;
+            display: flex; justify-content: center; align-items: center;
+            transition: transform 0.2s;
+            margin-bottom: 10px;
+            user-select: none;
+        }
+        #sound-control:hover { transform: scale(1.1); background: rgba(0, 242, 96, 0.2); }
+
         #start-screen, #game-over-screen, #clear-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.85);
@@ -47,6 +65,23 @@
             color: rgba(255,255,255,0.8); margin-top: 5px;
         }
         .hidden { display: none !important; }
+
+        /* 카운트다운 애니메이션 */
+        #countdown-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            pointer-events: none; z-index: 5;
+        }
+        .countdown-number {
+            font-size: 10rem; font-weight: 900; color: #fff;
+            text-shadow: 0 0 30px rgba(0,255,255,0.8);
+            animation: popIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 0; }
+        }
         
         /* 쉐이크 효과 */
         @keyframes shake {
@@ -67,6 +102,11 @@
 </head>
 <body>
 
+    <!-- 오디오 태그: 사이버펑크 스타일 BGM (볼륨 조절을 위해 JS 제어) -->
+    <audio id="bgm" loop>
+        <source src="https://cdn.pixabay.com/audio/2022/03/15/audio_c8c8a73467.mp3" type="audio/mpeg">
+    </audio>
+
     <canvas id="gameCanvas"></canvas>
 
     <div id="ui-layer">
@@ -75,11 +115,17 @@
                 <div style="color: #00ffff;">TARGET: <span id="targetEl">10</span></div>
                 <div style="color: #ffeb3b; margin-top: 5px;">CURRENT: <span id="currentEl">0</span></div>
             </div>
-            <div class="hud-text text-right">
-                <div style="color: #ff0055;">HP: <span id="hpEl">100</span>%</div>
-                <div style="font-size: 1rem; color: #aaa; margin-top: 5px;">
-                    LEVEL <span id="levelEl">1</span>
-                    <span id="modeDisplay" style="font-size: 0.8rem; display:block; color:#00f260;"></span>
+            
+            <div class="flex flex-col items-end">
+                <!-- 사운드 컨트롤 버튼 -->
+                <div id="sound-control" onclick="toggleSound()">🔇</div>
+                
+                <div class="hud-text text-right">
+                    <div style="color: #ff0055;">HP: <span id="hpEl">100</span>%</div>
+                    <div style="font-size: 1rem; color: #aaa; margin-top: 5px;">
+                        LEVEL <span id="levelEl">1</span>
+                        <span id="modeDisplay" style="font-size: 0.8rem; display:block; color:#00f260;"></span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -87,6 +133,8 @@
         <div id="message-area" class="text-center text-5xl font-black text-white drop-shadow-lg opacity-0 transition-opacity duration-300 transform scale-150">
             LEVEL UP!
         </div>
+        <!-- 카운트다운 영역 -->
+        <div id="countdown-overlay"></div>
     </div>
 
     <!-- 시작 화면 (난이도 선택) -->
@@ -98,7 +146,7 @@
         
         <button class="btn" onclick="startGame('easy')">
             워밍업
-            <span class="btn-sub">기초를 탄탄히! (느림)</span>
+            <span class="btn-sub">기초를 탄탄히! (아주 느림)</span>
         </button>
         <button class="btn" style="background: linear-gradient(45deg, #0575e6, #00f260);" onclick="startGame('normal')">
             실전
@@ -117,10 +165,10 @@
         <button class="btn" id="restartBtn">메인으로</button>
     </div>
 
-    <!-- 클리어 화면 -->
+    <!-- 클리어 화면 (동적 변경 예정) -->
     <div id="clear-screen" class="hidden">
-        <h2 class="text-6xl font-black text-yellow-400 mb-4 drop-shadow-lg">MISSION COMPLETE!</h2>
-        <p class="text-xl text-white mb-8">모든 훈련을 완수했습니다.</p>
+        <h2 id="clearTitle" class="text-6xl font-black mb-4 drop-shadow-lg">CONGRATULATIONS!</h2>
+        <p id="clearDesc" class="text-xl text-white mb-8 text-center px-4 leading-relaxed">...</p>
         <button class="btn" id="finalRestartBtn">처음으로 돌아가기</button>
     </div>
 
@@ -135,31 +183,64 @@
         const levelEl = document.getElementById('levelEl');
         const modeDisplay = document.getElementById('modeDisplay');
         const messageArea = document.getElementById('message-area');
+        const countdownOverlay = document.getElementById('countdown-overlay');
+        const soundBtn = document.getElementById('sound-control');
         
         const startScreen = document.getElementById('start-screen');
         const gameOverScreen = document.getElementById('game-over-screen');
         const clearScreen = document.getElementById('clear-screen');
         const finalLevelEl = document.getElementById('finalLevel');
+        
+        const clearTitle = document.getElementById('clearTitle');
+        const clearDesc = document.getElementById('clearDesc');
+        
+        // 오디오 요소
+        const bgm = document.getElementById('bgm');
+        let isSoundOn = false;
 
-        // 게임 설정 (난이도)
+        // 난이도 설정
         const DIFFICULTY = {
-            easy: { name: "워밍업", speed: 1.0, accel: 0.1 },   // 거의 안 빨라짐
-            normal: { name: "실전", speed: 2.5, accel: 0.3 },   // 적당히 빨라짐
-            hard: { name: "몰입", speed: 4.5, accel: 0.5 }      // 매우 빠름
+            easy: { name: "워밍업", speed: 0.8, accel: 0.05 },
+            normal: { name: "실전", speed: 1.5, accel: 0.1 },
+            hard: { name: "몰입", speed: 3.0, accel: 0.2 }
         };
 
-        // 게임 상태
+        // 피날레 설정
+        const FINALE_CONFIG = {
+            easy: {
+                title: "HEALING COMPLETE",
+                desc: "충분합니다.<br>이미 당신의 두뇌는 최고 상태입니다!",
+                titleColorClass: "text-green-400",
+                hueRange: [90, 150] 
+            },
+            normal: {
+                title: "EXCELLENT!",
+                desc: "최고의 실전을 완료하였습니다.<br>당신의 두뇌는 무엇이든 할 수 있습니다!",
+                titleColorClass: "text-blue-400",
+                hueRange: [190, 240] 
+            },
+            hard: {
+                title: "ALL CLEAR!",
+                desc: "최고의 두뇌 레벨!<br>당신은 무아지경 속에 있습니다!",
+                titleColorClass: "text-red-500",
+                hueRange: [340, 380] 
+            }
+        };
+
+        // 게임 상태 변수
         let currentMode = 'normal';
         let gameActive = false;
+        let isTransitioning = false; 
         let animationId;
         let frames = 0;
-        let timeScale = 1.0; // 시간 조절 변수 (1.0 = 정상, 0.1 = 슬로우)
-        let flashAlpha = 0;  // 화면 번쩍임 효과
+        let timeScale = 1.0;
+        let flashAlpha = 0;
         
         let player;
         let projectiles = [];
         let numbers = [];
         let particles = [];
+        let confettiList = [];
         let stars = [];
 
         let currentSum = 0;
@@ -174,6 +255,23 @@
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
+
+        // ---------------- 사운드 로직 ----------------
+        function toggleSound() {
+            isSoundOn = !isSoundOn;
+            updateSoundIcon();
+            if (isSoundOn) {
+                bgm.volume = 0.5;
+                bgm.play().catch(e => console.log("Audio play failed:", e));
+            } else {
+                bgm.pause();
+            }
+        }
+
+        function updateSoundIcon() {
+            soundBtn.innerText = isSoundOn ? "🔊" : "🔇";
+            soundBtn.style.borderColor = isSoundOn ? "#00f260" : "#ff0055";
+        }
 
         // ---------------- 클래스 ----------------
 
@@ -193,14 +291,15 @@
             }
             update() {
                 this.draw();
-                // 플레이어 이동 (timeScale 영향 없음 - 조작감 유지)
                 if (this.x - this.width/2 < 0) this.x = this.width/2;
                 if (this.x + this.width/2 > canvas.width) this.x = canvas.width - this.width/2;
                 if (this.y - this.height/2 < 0) this.y = this.height/2;
                 if (this.y + this.height/2 > canvas.height) this.y = canvas.height - this.height/2;
                 
-                this.x += this.velocity.x; 
-                this.y += this.velocity.y;
+                if (!isTransitioning) {
+                    this.x += this.velocity.x; 
+                    this.y += this.velocity.y;
+                }
             }
         }
 
@@ -210,7 +309,6 @@
                 this.value = Math.floor(Math.random() * 9) + 1;
                 this.width = 40; this.height = 40;
                 
-                // 속도 공식: 기본속도 + (레벨 * 가속도)
                 const settings = DIFFICULTY[currentMode];
                 const baseSpeed = settings.speed + (level * settings.accel);
                 
@@ -221,26 +319,21 @@
             }
             draw() {
                 ctx.save(); ctx.translate(this.x, this.y);
-                
                 ctx.beginPath();
                 ctx.rect(-this.width/2, -this.height/2, this.width, this.height);
-                ctx.strokeStyle = this.color;
-                ctx.lineWidth = 2;
-                ctx.stroke();
+                ctx.strokeStyle = this.color; ctx.lineWidth = 2; ctx.stroke();
                 ctx.shadowColor = this.color; ctx.shadowBlur = 10;
-                
                 ctx.fillStyle = '#fff';
                 ctx.font = 'bold 24px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.fillText(this.value, 0, 2);
-                
                 ctx.restore();
             }
             update() {
                 this.draw();
-                // 슬로우 모션 영향 받음
-                this.y += this.velocity.y * timeScale;
+                if (!isTransitioning) {
+                    this.y += this.velocity.y * timeScale;
+                }
             }
         }
 
@@ -249,6 +342,7 @@
                 this.x = x; this.y = y; 
                 this.velocity = { x: 0, y: -15 }; 
                 this.radius = 4; this.color = '#ffcc00';
+                this.markedForDeletion = false; // [수정] 즉시 삭제 플래그
             }
             draw() {
                 ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
@@ -256,9 +350,10 @@
             }
             update() { 
                 this.draw(); 
-                // 총알도 슬로우 모션 영향 받음 (극적인 연출을 위해)
-                this.x += this.velocity.x * timeScale; 
-                this.y += this.velocity.y * timeScale; 
+                if (!isTransitioning) {
+                    this.x += this.velocity.x * timeScale; 
+                    this.y += this.velocity.y * timeScale; 
+                }
             }
         }
 
@@ -270,19 +365,57 @@
             }
             update() {
                 this.draw();
-                // 폭발 효과도 느려짐
                 const currentFriction = 1 - ((1 - this.friction) * timeScale);
-                
                 this.velocity.x *= currentFriction; 
                 this.velocity.y *= currentFriction;
-                this.x += this.velocity.x * timeScale; 
-                this.y += this.velocity.y * timeScale;
-                this.alpha -= 0.03 * timeScale;
+                
+                let speedFactor = isTransitioning ? 1.0 : timeScale;
+                
+                this.x += this.velocity.x * speedFactor; 
+                this.y += this.velocity.y * speedFactor;
+                this.alpha -= 0.03 * speedFactor;
             }
             draw() {
                 ctx.save(); ctx.globalAlpha = this.alpha; ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 ctx.fillStyle = this.color; ctx.fill(); ctx.restore();
+            }
+        }
+
+        class Confetti {
+            constructor(hueRange) {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height - canvas.height;
+                
+                let minHue = hueRange[0];
+                let maxHue = hueRange[1];
+                let hue = Math.random() * (maxHue - minHue) + minHue;
+                if (hue > 360) hue -= 360;
+                
+                this.color = `hsl(${hue}, 100%, 60%)`; 
+                this.size = Math.random() * 10 + 5;
+                this.velocity = { x: (Math.random() - 0.5) * 2, y: Math.random() * 3 + 2 };
+                this.rotation = Math.random() * 360;
+                this.rotationSpeed = (Math.random() - 0.5) * 5;
+            }
+            update() {
+                this.draw();
+                this.y += this.velocity.y;
+                this.x += Math.sin(this.y * 0.01); 
+                this.rotation += this.rotationSpeed;
+                
+                if (this.y > canvas.height) {
+                    this.y = -20;
+                    this.x = Math.random() * canvas.width;
+                }
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation * Math.PI / 180);
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+                ctx.restore();
             }
         }
         
@@ -294,8 +427,10 @@
             draw() { ctx.save(); ctx.globalAlpha = this.alpha; ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); ctx.fillStyle = 'white'; ctx.fill(); ctx.restore(); }
             update() { 
                 this.draw(); 
-                this.y += this.velocity.y * timeScale; // 배경도 느려짐
-                if (this.y > canvas.height) { this.y = 0; this.x = Math.random() * canvas.width; } 
+                if (!isTransitioning) {
+                    this.y += this.velocity.y * timeScale; 
+                    if (this.y > canvas.height) { this.y = 0; this.x = Math.random() * canvas.width; } 
+                }
             }
         }
 
@@ -305,6 +440,12 @@
             currentMode = mode;
             modeDisplay.innerText = `${DIFFICULTY[mode].name} 모드`;
             startScreen.classList.add('hidden');
+            
+            // 게임 시작 시 사운드 자동 켜기 (사용자 제스처로 간주)
+            if (!isSoundOn) {
+                toggleSound();
+            }
+            
             init();
         }
 
@@ -313,12 +454,14 @@
             projectiles = [];
             numbers = [];
             particles = [];
+            confettiList = [];
             
             currentSum = 0;
             level = 1;
             targetNum = 10;
             timeScale = 1.0;
             flashAlpha = 0;
+            isTransitioning = false;
             
             updateUI();
             
@@ -327,10 +470,11 @@
         }
 
         function spawnNumbers() {
-            // 난이도별 생성 빈도 (Hard는 조금 더 자주 나옴)
-            let spawnRate = 40;
-            if (currentMode === 'hard') spawnRate = 30;
-            if (currentMode === 'easy') spawnRate = 50;
+            if (isTransitioning) return; 
+
+            let spawnRate = 60; 
+            if (currentMode === 'hard') spawnRate = 40;
+            if (currentMode === 'easy') spawnRate = 80;
 
             if (frames % spawnRate === 0) {
                 const radius = 20;
@@ -344,7 +488,7 @@
             messageArea.style.color = color;
             messageArea.style.opacity = 1;
             messageArea.classList.remove('scale-150');
-            void messageArea.offsetWidth; // Trigger reflow
+            void messageArea.offsetWidth; 
             messageArea.classList.add('scale-150');
             
             if (isShake) {
@@ -357,49 +501,65 @@
             }, 1500);
         }
 
+        function startLevelCountdown() {
+            let count = 5;
+            
+            function showNumber() {
+                if (count > 0) {
+                    countdownOverlay.innerHTML = `<div class="countdown-number" style="color:white;">${count}</div>`;
+                    count--;
+                    setTimeout(showNumber, 1000); 
+                } else {
+                    countdownOverlay.innerHTML = `<div class="countdown-number" style="color:#00f260; font-size:6rem;">START!</div>`;
+                    setTimeout(() => {
+                        countdownOverlay.innerHTML = '';
+                        isTransitioning = false; 
+                        showMessage(`LEVEL ${level} GO!`, '#00ffff');
+                    }, 1000);
+                }
+            }
+            showNumber();
+        }
+
         function triggerLevelClearEffect() {
-            // 슬로우 모션 시작
             timeScale = 0.1;
             
-            // 0.5초(실제시간) 후 화면 섬광 및 레벨업 처리
             setTimeout(() => {
-                flashAlpha = 1.0; // 섬광 시작
+                flashAlpha = 1.0; 
                 
-                // 실제 레벨업 로직
                 if (targetNum >= 100) {
                     gameClear();
                 } else {
                     level++;
                     targetNum += 10;
                     currentSum = 0;
-                    showMessage(`LEVEL ${level} START!`, '#00ffff');
+                    updateUI();
                     
-                    // 폭죽 효과
-                    for(let i=0; i<20; i++) {
+                    numbers = []; 
+                    projectiles = [];
+                    
+                    for(let i=0; i<30; i++) {
                         particles.push(new Particle(canvas.width/2, canvas.height/2, 'white'));
                     }
-                    numbers = []; // 화면 정리
+                    
+                    timeScale = 1.0;
+                    isTransitioning = true; 
+                    startLevelCountdown();
                 }
                 
-                // 시간 정상화
-                timeScale = 1.0;
-                
-            }, 600);
+            }, 2000); 
         }
 
         function checkLevelProgress(addValue) {
-            // 미리 계산해서 정확히 맞는지 확인
             if (currentSum + addValue === targetNum) {
                 currentSum += addValue;
                 updateUI();
-                triggerLevelClearEffect(); // 연출 발동
+                triggerLevelClearEffect(); 
             } else if (currentSum + addValue > targetNum) {
-                // 초과 (버스트) - 연출 없음
                 currentSum = 0;
                 showMessage("BUSTED! RESET", '#ff0055', true);
                 updateUI();
             } else {
-                // 아직 모자람
                 currentSum += addValue;
                 updateUI();
             }
@@ -419,79 +579,93 @@
             if (!gameActive) return;
             animationId = requestAnimationFrame(animate);
             
-            // 배경 그리기
             ctx.fillStyle = 'rgba(5, 5, 5, 0.3)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             stars.forEach(star => star.update());
 
-            // 플레이어
             if (keys.ArrowRight && player.x < canvas.width - player.width/2) player.velocity.x = player.speed;
             else if (keys.ArrowLeft && player.x > player.width/2) player.velocity.x = -player.speed;
             else player.velocity.x = 0;
-            
             if (keys.ArrowUp && player.y > player.height/2) player.velocity.y = -player.speed;
             else if (keys.ArrowDown && player.y < canvas.height - player.height/2) player.velocity.y = player.speed;
             else player.velocity.y = 0;
-            
             player.update();
 
-            // 입자
             particles.forEach((p, i) => {
                 if (p.alpha <= 0) particles.splice(i, 1);
                 else p.update();
             });
 
-            // 총알
+            confettiList.forEach(c => c.update());
+
+            // 총알 이동
             projectiles.forEach((p, i) => {
                 p.update();
-                if (p.y < 0) setTimeout(() => projectiles.splice(i, 1), 0);
             });
+            // 화면 밖 총알 정리
+            projectiles = projectiles.filter(p => p.y + p.radius > 0 && !p.markedForDeletion);
 
-            // 숫자 블록
-            numbers.forEach((numBlock, i) => {
+            // [수정] 충돌 처리 로직 개선 (동기식 처리로 중복 피격 방지)
+            // 숫자 블록을 뒤에서부터 순회하여 splice 안전하게 사용
+            for (let i = numbers.length - 1; i >= 0; i--) {
+                const numBlock = numbers[i];
                 numBlock.update();
+                
+                let blockHit = false;
 
-                // 1. 총알과 충돌
-                projectiles.forEach((p, pIndex) => {
+                // 총알 충돌 체크
+                for (let j = projectiles.length - 1; j >= 0; j--) {
+                    const p = projectiles[j];
+                    // 이미 다른 블록에 맞은 총알은 패스
+                    if (p.markedForDeletion) continue;
+
                     const dist = Math.hypot(p.x - numBlock.x, p.y - numBlock.y);
                     if (dist - numBlock.radius - p.radius < 1) {
+                        // 명중!
+                        p.markedForDeletion = true; // 총알 즉시 사망 처리
+                        blockHit = true;
+                        
                         // 이펙트
                         for (let k = 0; k < 8; k++) particles.push(new Particle(numBlock.x, numBlock.y, numBlock.color));
                         
-                        // 로직: 총알을 맞췄을 때 바로 더하지 않고, checkLevelProgress로 넘김
-                        // 제거 먼저
-                        setTimeout(() => {
-                            numbers.splice(i, 1);
-                            projectiles.splice(pIndex, 1);
-                        }, 0);
-                        
+                        // 로직 실행 (점수 합산 등)
                         checkLevelProgress(numBlock.value);
+                        
+                        // 총알 하나에 블록 하나만 맞아야 하므로, 블록이 맞았으면 더 이상 총알 검사 중단
+                        break; 
                     }
-                });
-
-                // 2. 플레이어와 충돌 (데미지)
-                const distPlayer = Math.hypot(player.x - numBlock.x, player.y - numBlock.y);
-                if (distPlayer - numBlock.radius - player.radius < 1) {
-                    for (let k = 0; k < 10; k++) particles.push(new Particle(player.x, player.y, 'red'));
-                    player.hp -= 20; 
-                    updateUI();
-                    numbers.splice(i, 1);
-                    if (player.hp <= 0) gameOver();
                 }
 
+                // 플레이어 충돌 체크
+                if (!blockHit) {
+                    const distPlayer = Math.hypot(player.x - numBlock.x, player.y - numBlock.y);
+                    if (distPlayer - numBlock.radius - player.radius < 1) {
+                        for (let k = 0; k < 10; k++) particles.push(new Particle(player.x, player.y, 'red'));
+                        player.hp -= 20; 
+                        updateUI();
+                        blockHit = true;
+                        if (player.hp <= 0) gameOver();
+                    }
+                }
+                
+                // 화면 밖 체크
                 if (numBlock.y > canvas.height + 50) {
+                    blockHit = true; // 제거하기 위해 true
+                }
+
+                // 블록 제거 (충돌했거나 화면 밖으로 나갔으면)
+                if (blockHit) {
                     numbers.splice(i, 1);
                 }
-            });
+            }
 
             spawnNumbers();
             
-            // 섬광 효과 그리기 (가장 위에)
             if (flashAlpha > 0) {
                 ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                flashAlpha -= 0.05; // 서서히 사라짐
+                flashAlpha -= 0.02; 
                 if (flashAlpha < 0) flashAlpha = 0;
             }
 
@@ -499,6 +673,7 @@
         }
 
         function shoot() {
+            if (isTransitioning) return; 
             projectiles.push(new Projectile(player.x, player.y - 20));
         }
 
@@ -509,8 +684,19 @@
         }
 
         function gameClear() {
-            gameActive = false;
+            const finale = FINALE_CONFIG[currentMode];
+            
+            clearTitle.innerText = finale.title;
+            clearTitle.className = `text-6xl font-black mb-4 drop-shadow-lg ${finale.titleColorClass}`;
+            clearDesc.innerHTML = finale.desc;
+            
             clearScreen.classList.remove('hidden');
+            
+            for(let i=0; i<100; i++) {
+                confettiList.push(new Confetti(finale.hueRange));
+            }
+            
+            isTransitioning = true; 
         }
 
         // --- 이벤트 리스너 ---
@@ -537,10 +723,9 @@
             player.x = e.touches[0].clientX;
         }, {passive: false});
 
-        // 재시작 버튼들
         document.getElementById('restartBtn').addEventListener('click', () => {
             gameOverScreen.classList.add('hidden');
-            startScreen.classList.remove('hidden'); // 난이도 선택으로 돌아감
+            startScreen.classList.remove('hidden'); 
         });
         document.getElementById('finalRestartBtn').addEventListener('click', () => {
             clearScreen.classList.add('hidden');
