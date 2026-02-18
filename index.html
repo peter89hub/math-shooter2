@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Math Shooter: Grand Master</title>
+    <title>Math Shooter: Final v5.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -15,6 +15,7 @@
             touch-action: none;
         }
         canvas { display: block; }
+        
         #ui-layer {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -23,46 +24,69 @@
             padding: 20px;
             z-index: 10;
         }
+        
         .hud-text {
             font-size: 1.5rem; font-weight: bold;
             text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
         }
         
-        #sound-control {
-            pointer-events: auto; cursor: pointer;
-            font-size: 1.5rem; background: rgba(0, 0, 0, 0.5);
-            padding: 10px; border-radius: 50%; border: 2px solid #00f260;
-            width: 50px; height: 50px;
-            display: flex; justify-content: center; align-items: center;
-            transition: transform 0.2s; margin-bottom: 10px; user-select: none;
+        /* 사운드 버튼: 클릭 영역 대폭 확대 및 최상위 배치 */
+        #sound-btn-wrapper {
+            pointer-events: auto;
+            cursor: pointer;
+            z-index: 999;
+            padding: 10px; /* 터치 영역 확보 */
         }
-        #sound-control:hover { transform: scale(1.1); background: rgba(0, 242, 96, 0.2); }
+        #sound-control {
+            font-size: 1.5rem; background: rgba(0, 0, 0, 0.8);
+            border-radius: 50%; border: 3px solid #00f260;
+            width: 60px; height: 60px;
+            display: flex; justify-content: center; align-items: center;
+            transition: transform 0.2s; user-select: none;
+            box-shadow: 0 0 15px rgba(0, 242, 96, 0.5);
+        }
+        #sound-control:active { transform: scale(0.9); }
 
-        #start-screen, #game-over-screen, #clear-screen {
+        #start-screen, #game-over-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.85);
+            background: rgba(0, 0, 0, 0.95);
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 30; /* UI보다 높게 */
+            z-index: 50; 
             pointer-events: auto; backdrop-filter: blur(5px);
         }
-        /* 클리어 화면이 최상단 */
-        #clear-screen { z-index: 50; }
+        
+        /* 클리어 화면: 무조건 보이게 설정 */
+        #clear-screen { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; /* JS로 flex 변경 */
+            flex-direction: column; justify-content: center; align-items: center;
+            pointer-events: auto; backdrop-filter: blur(10px);
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 100; 
+        }
 
         .btn {
             background: linear-gradient(45deg, #00f260, #0575e6);
-            border: none; padding: 15px 30px; color: white;
-            font-size: 1.1rem; border-radius: 15px; cursor: pointer; margin: 10px;
-            box-shadow: 0 0 15px rgba(0, 242, 96, 0.3);
-            transition: transform 0.2s, box-shadow 0.2s; 
+            border: none; padding: 15px 40px; color: white;
+            font-size: 1.2rem; border-radius: 15px; cursor: pointer; margin: 12px;
+            box-shadow: 0 0 20px rgba(0, 242, 96, 0.4);
+            transition: transform 0.1s; 
             text-transform: uppercase; font-weight: 800;
-            width: 280px; text-align: center;
+            width: 300px; text-align: center;
         }
-        .btn:hover { transform: scale(1.05); box-shadow: 0 0 25px rgba(0, 242, 96, 0.6); }
+        .btn:active { transform: scale(0.95); }
         .btn-sub {
-            display: block; font-size: 0.8rem; font-weight: normal; 
-            color: rgba(255,255,255,0.8); margin-top: 5px;
+            display: block; font-size: 0.85rem; font-weight: normal; 
+            color: rgba(255,255,255,0.9); margin-top: 5px;
         }
         .hidden { display: none !important; }
+
+        /* 버전 표시 */
+        #version-stamp {
+            position: absolute; bottom: 10px; left: 10px;
+            font-size: 0.8rem; color: #555;
+            z-index: 9999;
+        }
 
         #countdown-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -70,39 +94,21 @@
             pointer-events: none; z-index: 20;
         }
         .countdown-number {
-            font-size: 10rem; font-weight: 900; color: #fff;
-            text-shadow: 0 0 30px rgba(0,255,255,0.8);
-            animation: popIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            font-size: 15rem; font-weight: 900; color: #fff;
+            text-shadow: 0 0 50px rgba(0,255,255,1);
+            animation: popIn 0.9s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
         }
         @keyframes popIn {
             0% { transform: scale(0); opacity: 0; }
             50% { transform: scale(1.2); opacity: 1; }
             100% { transform: scale(1); opacity: 0; }
         }
-        
-        @keyframes shake {
-            0% { transform: translate(1px, 1px) rotate(0deg); }
-            10% { transform: translate(-1px, -2px) rotate(-1deg); }
-            20% { transform: translate(-3px, 0px) rotate(1deg); }
-            30% { transform: translate(3px, 2px) rotate(0deg); }
-            40% { transform: translate(1px, -1px) rotate(1deg); }
-            50% { transform: translate(-1px, 2px) rotate(-1deg); }
-            60% { transform: translate(-3px, 1px) rotate(0deg); }
-            70% { transform: translate(3px, 1px) rotate(-1deg); }
-            80% { transform: translate(-1px, -1px) rotate(1deg); }
-            90% { transform: translate(1px, 2px) rotate(0deg); }
-            100% { transform: translate(1px, -2px) rotate(-1deg); }
-        }
-        .shake { animation: shake 0.5s; color: #ff0055 !important; }
     </style>
 </head>
 <body>
 
-    <!-- [수정] 호환성 좋은 MP3 파일로 교체 (Synthwave Style) -->
-    <audio id="bgm" loop>
-        <!-- Royalty Free Music from Pixabay -->
-        <source src="https://cdn.pixabay.com/audio/2021/11/24/audio_8234851224.mp3" type="audio/mpeg">
-    </audio>
+    <!-- 버전 확인용 -->
+    <div id="version-stamp">v5.0 System Active</div>
 
     <canvas id="gameCanvas"></canvas>
 
@@ -114,9 +120,11 @@
             </div>
             
             <div class="flex flex-col items-end">
-                <div id="sound-control" onclick="toggleSound()">🔇</div>
+                <div id="sound-btn-wrapper" onclick="toggleSound()">
+                    <div id="sound-control">🔇</div>
+                </div>
                 
-                <div class="hud-text text-right">
+                <div class="hud-text text-right mt-4">
                     <div style="color: #ff0055;">HP: <span id="hpEl">100</span>%</div>
                     <div style="font-size: 1rem; color: #aaa; margin-top: 5px;">
                         LEVEL <span id="levelEl">1 / 10</span>
@@ -125,9 +133,7 @@
                 </div>
             </div>
         </div>
-        <div id="message-area" class="text-center text-5xl font-black text-white drop-shadow-lg opacity-0 transition-opacity duration-300 transform scale-150">
-            LEVEL UP!
-        </div>
+        <div id="message-area" class="text-center text-5xl font-black text-white drop-shadow-lg opacity-0 transition-opacity duration-300 transform scale-150"></div>
         <div id="countdown-overlay"></div>
     </div>
 
@@ -136,7 +142,7 @@
         <h1 class="text-6xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-red-600 filter drop-shadow-lg text-center">
             MATH SHOOTER
         </h1>
-        <p class="text-gray-300 mb-8 text-center text-sm">총 10단계 (Target 100)를 모두 클리어하세요!</p>
+        <p class="text-gray-300 mb-8 text-center text-sm">v5.0 | 총 10단계 (Target 100) 도전!</p>
         
         <button class="btn" onclick="startGame('easy')">
             워밍업
@@ -158,16 +164,103 @@
         <button class="btn" id="restartBtn">메인으로</button>
     </div>
 
-    <div id="clear-screen" class="hidden">
-        <h2 id="clearTitle" class="text-6xl font-black mb-4 drop-shadow-lg">CONGRATULATIONS!</h2>
+    <div id="clear-screen">
+        <h2 id="clearTitle" class="text-6xl font-black mb-4 drop-shadow-lg text-center">CONGRATULATIONS!</h2>
         <p id="clearDesc" class="text-xl text-white mb-8 text-center px-4 leading-relaxed">...</p>
         <button class="btn" id="finalRestartBtn">처음으로 돌아가기</button>
     </div>
 
     <script>
+        /**
+         * v5.0 오디오 시스템: Master Gain Node 방식
+         * 소리가 안 꺼지는 문제를 원천 차단하기 위해 '볼륨 노드'를 제어합니다.
+         */
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        let masterGain; // 전체 볼륨 컨트롤러
+        let isSoundOn = false;
+        let bgmInterval = null;
+
+        function initAudioEngine() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+                masterGain = audioCtx.createGain();
+                masterGain.gain.value = 0; // 초기값 Mute
+                masterGain.connect(audioCtx.destination);
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSynthNote() {
+            if (!audioCtx || !masterGain) return;
+            
+            const now = audioCtx.currentTime;
+            
+            // 킥 (Kick)
+            const osc1 = audioCtx.createOscillator();
+            const gain1 = audioCtx.createGain();
+            osc1.type = 'triangle';
+            osc1.frequency.setValueAtTime(120, now);
+            osc1.frequency.exponentialRampToValueAtTime(0.01, now + 0.5);
+            gain1.gain.setValueAtTime(0.8, now);
+            gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+            osc1.connect(gain1);
+            gain1.connect(masterGain); // 마스터에 연결
+            osc1.start(now);
+            osc1.stop(now + 0.5);
+
+            // 멜로디 (Random)
+            const notes = [261.6, 311.1, 392.0, 523.2]; // C minor
+            const note = notes[Math.floor(Math.random() * notes.length)];
+            const osc2 = audioCtx.createOscillator();
+            const gain2 = audioCtx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.value = note;
+            gain2.gain.setValueAtTime(0.3, now);
+            gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc2.connect(gain2);
+            gain2.connect(masterGain); // 마스터에 연결
+            osc2.start(now);
+            osc2.stop(now + 0.3);
+        }
+
+        function toggleSound() {
+            initAudioEngine();
+            isSoundOn = !isSoundOn;
+            
+            const btn = document.getElementById('sound-control');
+            
+            if (isSoundOn) {
+                // 소리 켜기: 마스터 볼륨 UP + 인터벌 시작
+                masterGain.gain.setValueAtTime(0.3, audioCtx.currentTime); // 볼륨 30%
+                if (!bgmInterval) bgmInterval = setInterval(playSynthNote, 400);
+                
+                btn.innerText = "🔊";
+                btn.style.borderColor = "#00f260";
+                btn.style.backgroundColor = "rgba(0, 242, 96, 0.2)";
+            } else {
+                // 소리 끄기: 마스터 볼륨 0 (즉시 차단)
+                if (masterGain) masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+                if (bgmInterval) {
+                    clearInterval(bgmInterval);
+                    bgmInterval = null;
+                }
+                
+                btn.innerText = "🔇";
+                btn.style.borderColor = "#ff0055";
+                btn.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+            }
+        }
+
+        /**
+         * 게임 데이터 및 설정
+         */
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
+        // UI
         const targetEl = document.getElementById('targetEl');
         const currentEl = document.getElementById('currentEl');
         const hpEl = document.getElementById('hpEl');
@@ -175,18 +268,14 @@
         const modeDisplay = document.getElementById('modeDisplay');
         const messageArea = document.getElementById('message-area');
         const countdownOverlay = document.getElementById('countdown-overlay');
-        const soundBtn = document.getElementById('sound-control');
         
+        // Screens
         const startScreen = document.getElementById('start-screen');
         const gameOverScreen = document.getElementById('game-over-screen');
         const clearScreen = document.getElementById('clear-screen');
-        const finalLevelEl = document.getElementById('finalLevel');
-        
         const clearTitle = document.getElementById('clearTitle');
         const clearDesc = document.getElementById('clearDesc');
-        
-        const bgm = document.getElementById('bgm');
-        let isSoundOn = false;
+        const finalLevelEl = document.getElementById('finalLevel');
 
         const DIFFICULTY = {
             easy: { name: "워밍업", speed: 0.8, accel: 0.05 },
@@ -198,42 +287,33 @@
             easy: {
                 title: "HEALING COMPLETE",
                 desc: "충분합니다.<br>이미 당신의 두뇌는 최고 상태입니다!",
-                titleColorClass: "text-green-400",
-                hueRange: [90, 150] 
+                colorClass: "text-green-400",
+                hue: [90, 150]
             },
             normal: {
                 title: "EXCELLENT!",
                 desc: "최고의 실전을 완료하였습니다.<br>당신의 두뇌는 무엇이든 할 수 있습니다!",
-                titleColorClass: "text-blue-400",
-                hueRange: [190, 240] 
+                colorClass: "text-blue-400",
+                hue: [200, 260]
             },
             hard: {
                 title: "ALL CLEAR!",
                 desc: "최고의 두뇌 레벨!<br>당신은 무아지경 속에 있습니다!",
-                titleColorClass: "text-red-500",
-                hueRange: [340, 380] 
+                colorClass: "text-red-500",
+                hue: [340, 380]
             }
         };
 
+        // State
         let currentMode = 'normal';
         let gameActive = false;
-        let isTransitioning = false;
         let isLevelClearing = false;
+        let timeScale = 1.0;
         let animationId;
         let frames = 0;
-        let timeScale = 1.0;
-        let flashAlpha = 0;
         
-        let player;
-        let projectiles = [];
-        let numbers = [];
-        let particles = [];
-        let confettiList = [];
-        let stars = [];
-
-        let currentSum = 0;
-        let targetNum = 10;
-        let level = 1;
+        let player, projectiles, numbers, particles, confettiList, stars;
+        let currentSum = 0, targetNum = 10, level = 1;
         
         let keys = { ArrowRight: false, ArrowLeft: false, ArrowUp: false, ArrowDown: false, Space: false };
 
@@ -244,154 +324,94 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        function toggleSound() {
-            isSoundOn = !isSoundOn;
-            updateSoundIcon();
-            if (isSoundOn) {
-                bgm.volume = 0.5;
-                const playPromise = bgm.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(error => { console.log("Audio prevented:", error); });
-                }
-            } else {
-                bgm.pause();
-            }
-        }
-
-        function updateSoundIcon() {
-            soundBtn.innerText = isSoundOn ? "🔊" : "🔇";
-            soundBtn.style.borderColor = isSoundOn ? "#00f260" : "#ff0055";
-        }
-
-        // ---------------- 클래스 ----------------
+        // ------------------ Classes ------------------
+        
         class Player {
             constructor() {
                 this.width = 40; this.height = 50;
-                this.x = canvas.width / 2; this.y = canvas.height - 100;
-                this.velocity = { x: 0, y: 0 }; this.speed = 7;
-                this.color = '#00ffff'; 
-                this.hp = 100; 
-                this.radius = 20;
-                
-                // [신규] 피격 시 빨간 깜빡임 효과용 타이머
-                this.damageBlinkTimer = 0; 
+                this.x = canvas.width/2; this.y = canvas.height - 100;
+                this.velocity = {x:0, y:0}; this.speed = 7;
+                this.color = '#00ffff'; this.hp = 100; this.radius = 20;
+                this.blinkTimer = 0;
             }
             draw() {
                 ctx.save(); ctx.translate(this.x, this.y);
-                
-                // [신규] 깜빡임 로직: 타이머가 켜져있고, 10프레임 간격으로 색상 변경
-                let fillColor = this.color;
-                if (this.damageBlinkTimer > 0) {
-                    // 60프레임 기준 10프레임마다 빨강/원래색 전환
-                    if (Math.floor(this.damageBlinkTimer / 5) % 2 === 0) {
-                        fillColor = '#ff0000'; // 빨간색
-                    }
+                let c = this.color;
+                if(this.blinkTimer > 0) {
+                    if(Math.floor(this.blinkTimer/5)%2 === 0) c = '#ff0000';
                 }
-
-                ctx.beginPath(); ctx.moveTo(0, -this.height / 2); ctx.lineTo(this.width / 2, this.height / 2);
-                ctx.lineTo(0, this.height / 3); ctx.lineTo(-this.width / 2, this.height / 2); ctx.closePath();
-                ctx.shadowColor = fillColor; ctx.shadowBlur = 15; 
-                ctx.fillStyle = fillColor; 
-                ctx.fill();
+                ctx.beginPath(); ctx.moveTo(0, -this.height/2); ctx.lineTo(this.width/2, this.height/2);
+                ctx.lineTo(0, this.height/3); ctx.lineTo(-this.width/2, this.height/2); ctx.closePath();
+                ctx.shadowColor = c; ctx.shadowBlur = 15; ctx.fillStyle = c; ctx.fill();
                 ctx.restore();
             }
             update() {
+                if(this.blinkTimer > 0) this.blinkTimer--;
+                this.x += this.velocity.x; this.y += this.velocity.y;
+                if(this.x < 0) this.x = 0; if(this.x > canvas.width) this.x = canvas.width;
+                if(this.y < 0) this.y = 0; if(this.y > canvas.height) this.y = canvas.height;
                 this.draw();
-                
-                // 데미지 타이머 감소
-                if (this.damageBlinkTimer > 0) this.damageBlinkTimer--;
-
-                if (this.x - this.width/2 < 0) this.x = this.width/2;
-                if (this.x + this.width/2 > canvas.width) this.x = canvas.width - this.width/2;
-                if (this.y - this.height/2 < 0) this.y = this.height/2;
-                if (this.y + this.height/2 > canvas.height) this.y = canvas.height - this.height/2;
-                
-                if (!isTransitioning) {
-                    this.x += this.velocity.x; 
-                    this.y += this.velocity.y;
-                }
             }
-            // 데미지 입었을 때 호출
-            hit() {
-                this.damageBlinkTimer = 40; // 약 0.7초간 깜빡임
-            }
+            hit() { this.blinkTimer = 40; }
         }
 
         class NumberBlock {
             constructor(x, y) {
                 this.x = x; this.y = y;
-                this.value = Math.floor(Math.random() * 9) + 1;
+                this.value = Math.floor(Math.random()*9)+1;
                 this.width = 40; this.height = 40;
-                
-                const settings = DIFFICULTY[currentMode];
-                const baseSpeed = settings.speed + (level * settings.accel);
-                
-                this.velocity = { x: 0, y: baseSpeed };
+                const set = DIFFICULTY[currentMode];
+                this.velocity = {x:0, y: set.speed + (level * set.accel)};
                 this.radius = 20;
-                const colors = ['#fff', '#ff5252', '#ffeb3b', '#4caf50', '#2196f3', '#9c27b0', '#e040fb', '#ff9800', '#795548', '#607d8b'];
+                const colors = ['#fff','#ff5252','#ffeb3b','#4caf50','#2196f3','#9c27b0','#e040fb','#ff9800','#795548','#607d8b'];
                 this.color = colors[this.value];
             }
             draw() {
                 ctx.save(); ctx.translate(this.x, this.y);
-                ctx.beginPath();
-                ctx.rect(-this.width/2, -this.height/2, this.width, this.height);
+                ctx.beginPath(); ctx.rect(-20, -20, 40, 40);
                 ctx.strokeStyle = this.color; ctx.lineWidth = 2; ctx.stroke();
-                ctx.shadowColor = this.color; ctx.shadowBlur = 10;
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 24px Arial';
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 24px Arial';
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.fillText(this.value, 0, 2);
                 ctx.restore();
             }
             update() {
+                this.y += this.velocity.y * timeScale;
                 this.draw();
-                if (!isTransitioning) {
-                    this.y += this.velocity.y * timeScale;
-                }
             }
         }
 
         class Projectile {
             constructor(x, y) {
-                this.x = x; this.y = y; 
-                this.velocity = { x: 0, y: -15 }; 
-                this.radius = 4; this.color = '#ffcc00';
-                this.markedForDeletion = false; 
+                this.x = x; this.y = y; this.radius = 4;
+                this.velocity = {x:0, y:-15}; this.color = '#ffcc00';
+                this.dead = false;
             }
             draw() {
-                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
                 ctx.fillStyle = this.color; ctx.fill();
             }
-            update() { 
-                this.draw(); 
-                if (!isTransitioning) {
-                    this.x += this.velocity.x * timeScale; 
-                    this.y += this.velocity.y * timeScale; 
-                }
+            update() {
+                this.x += this.velocity.x * timeScale;
+                this.y += this.velocity.y * timeScale;
+                this.draw();
             }
         }
 
         class Particle {
             constructor(x, y, color) {
-                this.x = x; this.y = y;
-                this.velocity = { x: (Math.random() - 0.5) * 6, y: (Math.random() - 0.5) * 6 };
-                this.radius = Math.random() * 3; this.color = color; this.alpha = 1; this.friction = 0.95;
+                this.x = x; this.y = y; this.color = color;
+                this.v = {x: (Math.random()-0.5)*6, y: (Math.random()-0.5)*6};
+                this.alpha = 1;
             }
             update() {
-                this.draw();
-                const currentFriction = 1 - ((1 - this.friction) * timeScale);
-                this.velocity.x *= currentFriction; 
-                this.velocity.y *= currentFriction;
+                // timeScale 영향 받음 (슬로우모션용)
+                this.x += this.v.x * timeScale; 
+                this.y += this.v.y * timeScale;
+                this.alpha -= 0.03 * timeScale;
                 
-                let speedFactor = isTransitioning ? 1.0 : timeScale;
-                
-                this.x += this.velocity.x * speedFactor; 
-                this.y += this.velocity.y * speedFactor;
-                this.alpha -= 0.03 * speedFactor;
-            }
-            draw() {
-                ctx.save(); ctx.globalAlpha = this.alpha; ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.save(); ctx.globalAlpha = this.alpha;
+                ctx.beginPath(); ctx.arc(this.x, this.y, 3, 0, Math.PI*2);
                 ctx.fillStyle = this.color; ctx.fill(); ctx.restore();
             }
         }
@@ -400,340 +420,273 @@
             constructor(hueRange) {
                 this.x = Math.random() * canvas.width;
                 this.y = Math.random() * canvas.height - canvas.height;
-                
-                let minHue = hueRange[0];
-                let maxHue = hueRange[1];
-                let hue = Math.random() * (maxHue - minHue) + minHue;
-                if (hue > 360) hue -= 360;
-                
-                this.color = `hsl(${hue}, 100%, 60%)`; 
-                this.size = Math.random() * 10 + 5;
-                this.velocity = { x: (Math.random() - 0.5) * 2, y: Math.random() * 3 + 2 };
-                this.rotation = Math.random() * 360;
-                this.rotationSpeed = (Math.random() - 0.5) * 5;
+                const min = hueRange[0], max = hueRange[1];
+                let h = Math.random() * (max - min) + min;
+                if(h > 360) h -= 360;
+                this.color = `hsl(${h}, 100%, 60%)`;
+                this.size = Math.random()*10+5;
+                this.v = {x: (Math.random()-0.5)*2, y: Math.random()*3+2};
+                this.rot = Math.random()*360;
+                this.rotSpd = (Math.random()-0.5)*5;
             }
             update() {
-                this.draw();
-                this.y += this.velocity.y;
-                this.x += Math.sin(this.y * 0.01); 
-                this.rotation += this.rotationSpeed;
+                this.y += this.v.y; this.x += Math.sin(this.y*0.01);
+                this.rot += this.rotSpd;
+                if(this.y > canvas.height) { this.y = -20; this.x = Math.random()*canvas.width; }
                 
-                if (this.y > canvas.height) {
-                    this.y = -20;
-                    this.x = Math.random() * canvas.width;
-                }
-            }
-            draw() {
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                ctx.rotate(this.rotation * Math.PI / 180);
-                ctx.fillStyle = this.color;
-                ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+                ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.rot*Math.PI/180);
+                ctx.fillStyle = this.color; ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
                 ctx.restore();
             }
         }
-        
+
         class Star {
             constructor() {
-                this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height;
-                this.radius = Math.random() * 1.5; this.velocity = { x: 0, y: Math.random() * 2 + 0.5 }; this.alpha = Math.random();
+                this.x = Math.random()*canvas.width; this.y = Math.random()*canvas.height;
+                this.r = Math.random()*1.5; this.v = Math.random()*2+0.5;
             }
-            draw() { ctx.save(); ctx.globalAlpha = this.alpha; ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); ctx.fillStyle = 'white'; ctx.fill(); ctx.restore(); }
-            update() { 
-                this.draw(); 
-                if (!isTransitioning) {
-                    this.y += this.velocity.y * timeScale; 
-                    if (this.y > canvas.height) { this.y = 0; this.x = Math.random() * canvas.width; } 
-                }
+            update() {
+                this.y += this.v * timeScale;
+                if(this.y > canvas.height) this.y = 0;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
+                ctx.fillStyle = 'white'; ctx.fill();
             }
         }
 
-        // ---------------- 게임 로직 ----------------
+        // ------------------ Main Logic ------------------
 
         function startGame(mode) {
             currentMode = mode;
-            modeDisplay.innerText = `${DIFFICULTY[mode].name} 모드`;
+            modeDisplay.innerText = `${DIFFICULTY[mode].name} MODE`;
             startScreen.classList.add('hidden');
             
-            // 게임 시작 시 사운드 켜기 시도
-            if (!isSoundOn) { toggleSound(); }
+            // 소리 켜기 (사용자 설정에 따라)
+            if(!isSoundOn) toggleSound();
             
             init();
         }
 
         function init() {
             player = new Player();
-            projectiles = [];
-            numbers = [];
-            particles = [];
-            confettiList = [];
+            projectiles = []; numbers = []; particles = []; confettiList = []; stars = [];
+            currentSum = 0; level = 1; targetNum = 10;
+            timeScale = 1.0; isLevelClearing = false;
             
-            currentSum = 0;
-            level = 1;
-            targetNum = 10;
-            timeScale = 1.0;
-            flashAlpha = 0;
-            isTransitioning = false;
-            isLevelClearing = false;
+            for(let i=0; i<50; i++) stars.push(new Star());
             
             updateUI();
-            
             gameActive = true;
             animate();
-        }
-
-        function spawnNumbers() {
-            if (isTransitioning) return; 
-
-            let spawnRate = 60; 
-            if (currentMode === 'hard') spawnRate = 40;
-            if (currentMode === 'easy') spawnRate = 80;
-
-            if (frames % spawnRate === 0) {
-                const radius = 20;
-                let x = Math.random() * (canvas.width - radius * 2) + radius;
-                numbers.push(new NumberBlock(x, -50));
-            }
-        }
-
-        function showMessage(text, color = 'white', isShake = false) {
-            messageArea.innerText = text;
-            messageArea.style.color = color;
-            messageArea.style.opacity = 1;
-            messageArea.classList.remove('scale-150');
-            void messageArea.offsetWidth; 
-            messageArea.classList.add('scale-150');
-            
-            if (isShake) {
-                currentEl.classList.add('shake');
-                setTimeout(() => currentEl.classList.remove('shake'), 500);
-            }
-
-            setTimeout(() => {
-                messageArea.style.opacity = 0;
-            }, 1500);
-        }
-
-        function startLevelCountdown() {
-            let count = 5;
-            
-            function showNumber() {
-                if (count > 0) {
-                    countdownOverlay.innerHTML = `<div class="countdown-number" style="color:white;">${count}</div>`;
-                    count--;
-                    setTimeout(showNumber, 1000); 
-                } else {
-                    countdownOverlay.innerHTML = `<div class="countdown-number" style="color:#00f260; font-size:6rem;">START!</div>`;
-                    setTimeout(() => {
-                        countdownOverlay.innerHTML = '';
-                        isTransitioning = false;
-                        isLevelClearing = false;
-                        showMessage(`LEVEL ${level} GO!`, '#00ffff');
-                    }, 1000);
-                }
-            }
-            showNumber();
-        }
-
-        function triggerLevelClearEffect() {
-            timeScale = 0.1;
-            isLevelClearing = true; // 무적 & 정지
-            
-            setTimeout(() => {
-                flashAlpha = 0; // 섬광 제거 (사용자 요청)
-                
-                // [중요] 피날레 로직 수정: 100 이상이면 무조건 클리어 처리
-                if (targetNum >= 100) {
-                    gameClear();
-                } else {
-                    level++;
-                    targetNum += 10;
-                    currentSum = 0;
-                    updateUI();
-                    
-                    numbers = []; 
-                    projectiles = [];
-                    
-                    for(let i=0; i<30; i++) {
-                        particles.push(new Particle(canvas.width/2, canvas.height/2, 'white'));
-                    }
-                    
-                    timeScale = 1.0;
-                    isTransitioning = true; 
-                    startLevelCountdown();
-                }
-                
-            }, 2000); 
-        }
-
-        function checkLevelProgress(addValue) {
-            if (isLevelClearing) return; 
-
-            if (currentSum + addValue === targetNum) {
-                currentSum += addValue;
-                updateUI();
-                triggerLevelClearEffect(); 
-            } else if (currentSum + addValue > targetNum) {
-                currentSum = 0;
-                showMessage("BUSTED! RESET", '#ff0055', true);
-                updateUI();
-            } else {
-                currentSum += addValue;
-                updateUI();
-            }
         }
 
         function updateUI() {
             targetEl.innerText = targetNum;
             currentEl.innerText = currentSum;
-            hpEl.innerText = player.hp;
+            hpEl.innerText = Math.max(0, player.hp);
             levelEl.innerText = `${level} / 10`;
-            
-            if (currentSum > targetNum * 0.8) currentEl.style.color = '#ff9800';
-            else currentEl.style.color = '#ffeb3b';
+            currentEl.style.color = (currentSum > targetNum*0.8) ? '#ff9800' : '#ffeb3b';
         }
 
-        function animate() {
-            if (!gameActive) return;
-            animationId = requestAnimationFrame(animate);
-            
-            ctx.fillStyle = 'rgba(5, 5, 5, 0.3)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            stars.forEach(star => star.update());
-
-            if (keys.ArrowRight && player.x < canvas.width - player.width/2) player.velocity.x = player.speed;
-            else if (keys.ArrowLeft && player.x > player.width/2) player.velocity.x = -player.speed;
-            else player.velocity.x = 0;
-            if (keys.ArrowUp && player.y > player.height/2) player.velocity.y = -player.speed;
-            else if (keys.ArrowDown && player.y < canvas.height - player.height/2) player.velocity.y = player.speed;
-            else player.velocity.y = 0;
-            player.update();
-
-            particles.forEach((p, i) => {
-                if (p.alpha <= 0) particles.splice(i, 1);
-                else p.update();
-            });
-
-            confettiList.forEach(c => c.update());
-
-            projectiles.forEach((p, i) => {
-                p.update();
-            });
-            projectiles = projectiles.filter(p => p.y + p.radius > 0 && !p.markedForDeletion);
-
-            for (let i = numbers.length - 1; i >= 0; i--) {
-                const numBlock = numbers[i];
-                numBlock.update();
-                
-                let blockHit = false;
-
-                for (let j = projectiles.length - 1; j >= 0; j--) {
-                    const p = projectiles[j];
-                    if (p.markedForDeletion) continue;
-
-                    const dist = Math.hypot(p.x - numBlock.x, p.y - numBlock.y);
-                    if (dist - numBlock.radius - p.radius < 1) {
-                        p.markedForDeletion = true; 
-                        blockHit = true;
-                        for (let k = 0; k < 8; k++) particles.push(new Particle(numBlock.x, numBlock.y, numBlock.color));
-                        checkLevelProgress(numBlock.value);
-                        break; 
-                    }
-                }
-
-                if (!blockHit) {
-                    const distPlayer = Math.hypot(player.x - numBlock.x, player.y - numBlock.y);
-                    if (!isLevelClearing && distPlayer - numBlock.radius - player.radius < 1) {
-                        for (let k = 0; k < 10; k++) particles.push(new Particle(player.x, player.y, 'red'));
-                        player.hp -= 20; 
-                        player.hit(); // [신규] 깜빡임 효과 발동
-                        updateUI();
-                        blockHit = true;
-                        if (player.hp <= 0) gameOver();
-                    }
-                }
-                
-                if (numBlock.y > canvas.height + 50) {
-                    blockHit = true; 
-                }
-
-                if (blockHit) {
-                    numbers.splice(i, 1);
-                }
+        function spawnNumber() {
+            if(isLevelClearing) return;
+            let rate = (currentMode === 'easy') ? 80 : (currentMode === 'hard' ? 40 : 60);
+            if(frames % rate === 0) {
+                numbers.push(new NumberBlock(Math.random()*(canvas.width-40)+20, -50));
             }
-
-            spawnNumbers();
-            
-            if (flashAlpha > 0) {
-                ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                flashAlpha -= 0.02; 
-                if (flashAlpha < 0) flashAlpha = 0;
-            }
-
-            frames++;
         }
 
-        function shoot() {
-            if (isTransitioning) return; 
-            projectiles.push(new Projectile(player.x, player.y - 20));
+        function checkHit() {
+            // Player collision
+            if(!isLevelClearing) {
+                numbers.forEach((n, ni) => {
+                    const dist = Math.hypot(player.x - n.x, player.y - n.y);
+                    if(dist < player.radius + n.radius) {
+                        player.hp -= 20; player.hit(); updateUI();
+                        for(let k=0; k<10; k++) particles.push(new Particle(player.x, player.y, 'red'));
+                        numbers.splice(ni, 1);
+                        if(player.hp <= 0) gameOver();
+                    }
+                });
+            }
+
+            // Projectile collision
+            projectiles.forEach((p, pi) => {
+                if(p.dead) return;
+                numbers.forEach((n, ni) => {
+                    if(p.dead) return; // 이미 맞은 총알
+                    const dist = Math.hypot(p.x - n.x, p.y - n.y);
+                    if(dist < p.radius + n.radius) {
+                        // HIT!
+                        p.dead = true;
+                        for(let k=0; k<8; k++) particles.push(new Particle(n.x, n.y, n.color));
+                        
+                        // Add value logic
+                        handleScore(n.value);
+                        
+                        // Remove number
+                        numbers.splice(ni, 1);
+                    }
+                });
+            });
+            
+            // Cleanup
+            projectiles = projectiles.filter(p => !p.dead && p.y > 0);
+            numbers = numbers.filter(n => n.y < canvas.height + 50);
+        }
+
+        function handleScore(val) {
+            if(isLevelClearing) return; // 이미 클리어했으면 점수 무시
+
+            if(currentSum + val === targetNum) {
+                currentSum += val;
+                updateUI();
+                
+                // [승리 판정] 100점 이상이면 게임 클리어
+                if(targetNum >= 100) {
+                    doGameClear();
+                } else {
+                    doLevelUp();
+                }
+            } else if (currentSum + val > targetNum) {
+                currentSum = 0; 
+                updateUI();
+                showMessage("BUSTED! RESET", '#ff0055');
+            } else {
+                currentSum += val;
+                updateUI();
+            }
+        }
+
+        function doLevelUp() {
+            isLevelClearing = true;
+            timeScale = 0.1; // Slow motion start
+            
+            level++; targetNum += 10; currentSum = 0; updateUI();
+            
+            // 폭죽
+            for(let i=0; i<30; i++) particles.push(new Particle(canvas.width/2, canvas.height/2, 'white'));
+            
+            // 적 제거 (배열 비우기)
+            numbers = []; projectiles = [];
+
+            // 카운트다운 시작 (5초간 슬로우)
+            let count = 5;
+            const overlay = document.getElementById('countdown-overlay');
+            
+            function tick() {
+                if(count > 0) {
+                    overlay.innerHTML = `<div class="countdown-number">${count}</div>`;
+                    count--;
+                    setTimeout(tick, 1000);
+                } else {
+                    overlay.innerHTML = `<div class="countdown-number" style="color:#00f260; font-size:8rem">START!</div>`;
+                    setTimeout(() => {
+                        overlay.innerHTML = '';
+                        timeScale = 1.0; // Restore speed
+                        isLevelClearing = false;
+                        showMessage(`LEVEL ${level} GO!`, '#00ffff');
+                    }, 1000);
+                }
+            }
+            tick();
+        }
+
+        function doGameClear() {
+            isLevelClearing = true;
+            timeScale = 0.1; // Final slow motion
+            
+            // [즉시 실행] 딜레이 없이 피날레 화면 호출
+            const finale = FINALE_CONFIG[currentMode] || FINALE_CONFIG['normal'];
+            
+            clearTitle.innerText = finale.title;
+            clearTitle.className = `text-6xl font-black mb-4 drop-shadow-lg ${finale.colorClass}`;
+            clearDesc.innerHTML = finale.desc;
+            
+            // 강제 표시
+            clearScreen.style.display = 'flex';
+            
+            // 색종이 생성
+            for(let i=0; i<150; i++) confettiList.push(new Confetti(finale.hue));
         }
 
         function gameOver() {
             gameActive = false;
             finalLevelEl.innerText = `${level} / 10`;
             gameOverScreen.classList.remove('hidden');
+            // 소리는 유지 (사용자가 끄게 둠)
         }
 
-        function gameClear() {
-            const finale = FINALE_CONFIG[currentMode];
-            
-            clearTitle.innerText = finale.title;
-            clearTitle.className = `text-6xl font-black mb-4 drop-shadow-lg ${finale.titleColorClass}`;
-            clearDesc.innerHTML = finale.desc;
-            
-            clearScreen.classList.remove('hidden');
-            
-            for(let i=0; i<100; i++) {
-                confettiList.push(new Confetti(finale.hueRange));
-            }
-            
-            isTransitioning = true; 
+        function showMessage(msg, color) {
+            const el = document.getElementById('message-area');
+            el.innerText = msg; el.style.color = color; el.style.opacity = 1;
+            setTimeout(() => el.style.opacity = 0, 1500);
         }
 
-        for (let i = 0; i < 50; i++) stars.push(new Star());
+        // Main Loop
+        function animate() {
+            if(!gameActive) return;
+            requestAnimationFrame(animate);
+            
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            stars.forEach(s => s.update());
+            
+            // Player Move
+            if(keys.ArrowRight && player.x < canvas.width-20) player.velocity.x = player.speed;
+            else if(keys.ArrowLeft && player.x > 20) player.velocity.x = -player.speed;
+            else player.velocity.x = 0;
+            
+            if(keys.ArrowUp && player.y > player.height) player.velocity.y = -player.speed;
+            else if(keys.ArrowDown && player.y < canvas.height-player.height) player.velocity.y = player.speed;
+            else player.velocity.y = 0;
+            
+            player.update();
+            
+            // Update Entities
+            particles = particles.filter(p => p.alpha > 0);
+            particles.forEach(p => p.update());
+            
+            confettiList.forEach(c => c.update());
+            
+            projectiles.forEach(p => p.update());
+            numbers.forEach(n => n.update());
+            
+            // Logic
+            checkHit();
+            spawnNumber();
+            
+            frames++;
+        }
 
+        // Controls
         window.addEventListener('keydown', e => {
-            if (e.code === 'Space') { if(gameActive) shoot(); keys.Space = true; }
-            if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
+            if(e.code === 'Space') { if(gameActive) projectiles.push(new Projectile(player.x, player.y-20)); keys.Space = true; }
+            if(keys.hasOwnProperty(e.code)) keys[e.code] = true;
         });
         window.addEventListener('keyup', e => {
-            if (e.code === 'Space') keys.Space = false;
-            if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
+            if(e.code === 'Space') keys.Space = false;
+            if(keys.hasOwnProperty(e.code)) keys[e.code] = false;
         });
-
         window.addEventListener('touchstart', (e) => {
-             if (gameActive && !isSoundOn) {
+             if(gameActive) {
+                 player.x = e.touches[0].clientX;
+                 projectiles.push(new Projectile(player.x, player.y-20));
              }
-             if (!gameActive) return;
-             
-             const t = e.touches[0];
-             player.x = t.clientX;
-             shoot();
         });
         window.addEventListener('touchmove', (e) => {
-            if (!gameActive) return;
-            e.preventDefault();
-            player.x = e.touches[0].clientX;
+            if(gameActive) {
+                e.preventDefault();
+                player.x = e.touches[0].clientX;
+            }
         }, {passive: false});
 
         document.getElementById('restartBtn').addEventListener('click', () => {
             gameOverScreen.classList.add('hidden');
-            startScreen.classList.remove('hidden'); 
+            startScreen.classList.remove('hidden');
         });
         document.getElementById('finalRestartBtn').addEventListener('click', () => {
-            clearScreen.classList.add('hidden');
+            clearScreen.style.display = 'none';
             startScreen.classList.remove('hidden');
         });
 
