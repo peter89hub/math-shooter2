@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- 캐시 방지 (강력) -->
+    <!-- 캐시 방지 -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     
-    <title>Math Shooter: v6.6</title>
+    <title>Math Shooter: v7.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -36,7 +36,6 @@
             text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
         }
         
-        /* 사운드 버튼 */
         .control-btn {
             font-size: 1.5rem; background: rgba(0, 0, 0, 0.6);
             border-radius: 50%; border: 2px solid #aaa;
@@ -62,7 +61,7 @@
             display: none; 
             flex-direction: column; justify-content: center; align-items: center;
             pointer-events: auto; 
-            background: rgba(0, 0, 0, 0.3); /* 투명도 조절로 뒤쪽 폭죽 보이게 함 */
+            background: rgba(0, 0, 0, 0.3);
             z-index: 100; 
         }
 
@@ -92,6 +91,11 @@
             z-index: 9999; 
         }
         
+        #audio-status {
+            position: absolute; bottom: 30px; left: 10px;
+            font-size: 0.8rem; color: #aaa; z-index: 9999;
+        }
+        
         #countdown-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; justify-content: center; align-items: center;
@@ -111,18 +115,17 @@
 </head>
 <body>
 
-    <!-- 버전 확인 -->
-    <div id="version-stamp">v6.6 : Bulletproof Audio</div>
+    <div id="version-stamp">v7.0 : Hybrid Audio</div>
+    <div id="audio-status">Audio: Ready</div>
 
-    <!-- 오디오 태그: 에러가 나도 무시하도록 설정 -->
-    <audio id="bgm" loop preload="auto">
+    <!-- 1순위: 파일 재생 -->
+    <audio id="bgmFile" loop preload="auto">
         <source src="./bgm.m4a" type="audio/mp4">
         <source src="./bgm.mp3" type="audio/mpeg">
     </audio>
 
     <canvas id="gameCanvas"></canvas>
 
-    <!-- UI 레이어 -->
     <div id="ui-layer">
         <div class="flex justify-between w-full max-w-4xl mx-auto items-start">
             <div class="hud-text text-left">
@@ -158,7 +161,7 @@
         <h1 class="text-6xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-red-600 filter drop-shadow-lg text-center">
             MATH SHOOTER
         </h1>
-        <p class="text-gray-300 mb-8 text-center text-sm">v6.6 | 안정성 강화 버전</p>
+        <p class="text-gray-300 mb-8 text-center text-sm">v7.0 | 소리가 안 나면 기계음으로 자동 전환됩니다.</p>
         
         <button class="btn" onclick="startGame('easy')">
             워밍업
@@ -194,42 +197,116 @@
     </div>
 
     <script>
-        // ---------------- 오디오 시스템 (안전장치 추가) ----------------
-        const bgmAudio = document.getElementById('bgm');
+        // ---------------- 하이브리드 오디오 시스템 (v7.0) ----------------
+        const bgmFile = document.getElementById('bgmFile');
+        const statusEl = document.getElementById('audio-status');
+        let useSynth = false; // 파일 실패 시 true로 변경
         let isSoundOn = false;
+        
+        // Synth 관련 변수
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        let masterGain;
+        let bgmInterval = null;
+        let beatCount = 0;
 
-        // 파일 로딩 에러가 나도 게임을 멈추지 않게 함
-        bgmAudio.addEventListener('error', function(e) {
-            console.warn("BGM 파일을 찾을 수 없습니다. (파일명: bgm.m4a 또는 bgm.mp3)");
-            // 에러가 나도 사용자에게 알림창을 띄우지 않고 조용히 넘어감
-        });
+        // 1. 파일 로딩 에러 감지 -> Synth 모드로 자동 전환
+        bgmFile.addEventListener('error', function(e) {
+            console.warn("오디오 파일 로드 실패. 신디사이저 모드로 전환합니다.");
+            useSynth = true;
+            statusEl.innerText = "Audio: Synth Mode (File missing)";
+        }, true); // 캡처링 단계에서 에러 포착
 
-        function startBGM() {
-            bgmAudio.volume = 0.5;
-            // Promise를 사용하여 재생 실패 시(파일 없음, 권한 없음 등)에도 에러를 잡아서 무시함
-            const playPromise = bgmAudio.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.log("오디오 재생 실패 (정상: 파일이 없거나 권한 부족):", error);
-                });
+        // 2. 파일 재생 시도 및 실패 처리
+        async function tryPlayFile() {
+            try {
+                bgmFile.volume = 0.5;
+                await bgmFile.play();
+                statusEl.innerText = "Audio: File Playing";
+            } catch (err) {
+                console.log("파일 재생 불가 (권한/경로 문제). Synth로 전환.");
+                useSynth = true;
+                statusEl.innerText = "Audio: Synth Mode (Auto)";
+                startSynthBGM();
             }
         }
 
-        function stopBGM() {
-            bgmAudio.pause();
+        // 3. 신디사이저 BGM (사이버펑크 스타일 튜닝)
+        function initSynth() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+                masterGain = audioCtx.createGain();
+                masterGain.gain.value = 0.3;
+                masterGain.connect(audioCtx.destination);
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
         }
 
+        function playSynthNote() {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            
+            // Kick (Square Wave for punch)
+            const oscKick = audioCtx.createOscillator();
+            const gainKick = audioCtx.createGain();
+            oscKick.type = 'square';
+            oscKick.frequency.setValueAtTime(100, now);
+            oscKick.frequency.exponentialRampToValueAtTime(0.01, now + 0.15);
+            gainKick.gain.setValueAtTime(0.6, now);
+            gainKick.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+            oscKick.connect(gainKick);
+            gainKick.connect(masterGain);
+            oscKick.start(now);
+            oscKick.stop(now + 0.15);
+
+            // Off-beat Bass (Sawtooth)
+            if (beatCount % 2 !== 0) {
+                const oscBass = audioCtx.createOscillator();
+                const gainBass = audioCtx.createGain();
+                oscBass.type = 'sawtooth';
+                oscBass.frequency.setValueAtTime(65.41, now); // C2
+                gainBass.gain.setValueAtTime(0.3, now);
+                gainBass.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                oscBass.connect(gainBass);
+                gainBass.connect(masterGain);
+                oscBass.start(now);
+                oscBass.stop(now + 0.2);
+            }
+            beatCount++;
+        }
+
+        function startSynthBGM() {
+            initSynth();
+            if (bgmInterval) clearInterval(bgmInterval);
+            bgmInterval = setInterval(playSynthNote, 250); // 120 BPM
+        }
+
+        function stopSynthBGM() {
+            if (bgmInterval) clearInterval(bgmInterval);
+            if (audioCtx) audioCtx.suspend();
+        }
+
+        // 4. 통합 토글 함수
         function toggleSound() {
             isSoundOn = !isSoundOn;
             updateSoundIcon();
-            
+
             if (isSoundOn) {
-                startBGM();
+                // 켜기
+                if (useSynth) {
+                    if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+                    startSynthBGM();
+                } else {
+                    // 파일 재생 시도. 실패하면 내부에서 useSynth=true 되고 startSynthBGM 호출됨
+                    tryPlayFile();
+                }
             } else {
-                stopBGM();
+                // 끄기
+                bgmFile.pause();
+                stopSynthBGM();
             }
         }
-        
+
         function updateSoundIcon() {
             const btn = document.getElementById('sound-control');
             if (isSoundOn) {
@@ -245,6 +322,7 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
+        // UI
         const targetEl = document.getElementById('targetEl');
         const currentEl = document.getElementById('currentEl');
         const hpEl = document.getElementById('hpEl');
@@ -255,6 +333,7 @@
         const messageArea = document.getElementById('message-area');
         const countdownOverlay = document.getElementById('countdown-overlay');
         
+        // Screens
         const startScreen = document.getElementById('start-screen');
         const gameOverScreen = document.getElementById('game-over-screen');
         const pauseScreen = document.getElementById('pause-screen');
@@ -265,6 +344,7 @@
         const failReason = document.getElementById('fail-reason');
         const finalLevelEl = document.getElementById('finalLevel');
 
+        // Leakage Limit
         const DIFFICULTY = {
             easy: { name: "워밍업", speed: 0.8, accel: 0.05, limit: 300 },
             normal: { name: "실전", speed: 1.5, accel: 0.1, limit: 200 },
@@ -292,6 +372,7 @@
             }
         };
 
+        // State
         let currentMode = 'normal';
         let gameActive = false;
         let isPaused = false;
@@ -347,7 +428,6 @@
             constructor(x, y) {
                 this.x = x; this.y = y;
                 this.isJoker = Math.random() < 0.1; 
-                
                 if (this.isJoker) {
                     this.value = -Math.floor(Math.random() * 9) - 1; 
                     this.color = '#a020f0'; 
@@ -356,7 +436,6 @@
                     const colors = ['#fff','#ff5252','#ffeb3b','#4caf50','#2196f3','#9c27b0','#e040fb','#ff9800','#795548','#607d8b'];
                     this.color = colors[this.value];
                 }
-
                 this.width = 40; this.height = 40;
                 const set = DIFFICULTY[currentMode];
                 this.velocity = {x:0, y: set.speed + (level * set.accel)};
@@ -460,7 +539,7 @@
             modeDisplay.innerText = `${DIFFICULTY[mode].name} MODE`;
             startScreen.classList.add('hidden');
             
-            // 소리 켜기 (파일이 있으면 켜지고, 없으면 에러없이 무시됨)
+            // 사운드 기본 켜기 (하이브리드 시스템 작동)
             if(!isSoundOn) toggleSound(); 
             init();
         }
@@ -471,10 +550,16 @@
             
             if (isPaused) {
                 pauseScreen.style.display = 'flex';
-                stopBGM();
+                // 일시정지 시 음악도 멈춤
+                bgmFile.pause();
+                stopSynthBGM();
             } else {
                 pauseScreen.style.display = 'none';
-                if (isSoundOn) startBGM();
+                // 재개 시 소리 상태에 따라 다시 켬
+                if (isSoundOn) {
+                    if (useSynth) startSynthBGM();
+                    else bgmFile.play();
+                }
             }
         }
 
@@ -635,7 +720,7 @@
             const totalSeconds = ((endTime - startTime) / 1000).toFixed(1);
             clearTime.innerText = `TOTAL TIME: ${totalSeconds}s`;
             
-            // [중요] 디스플레이 강제 설정 (Flex)
+            // [중요] 피날레 화면 강제 표시
             clearScreen.style.display = 'flex';
             
             for(let i=0; i<150; i++) confettiList.push(new Confetti(finale.hue));
@@ -646,7 +731,9 @@
             failReason.innerText = `원인: ${reason}`;
             finalLevelEl.innerText = `${level} / 10`;
             gameOverScreen.classList.remove('hidden');
-            stopBGM();
+            
+            bgmFile.pause();
+            stopSynthBGM();
         }
 
         function showMessage(msg, color) {
