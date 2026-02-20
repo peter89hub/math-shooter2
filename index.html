@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- 캐시 방지 -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     
-    <title>Math Shooter: v7.0</title>
+    <title>Math Shooter: v8.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -94,6 +93,7 @@
         #audio-status {
             position: absolute; bottom: 30px; left: 10px;
             font-size: 0.8rem; color: #aaa; z-index: 9999;
+            background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 4px;
         }
         
         #countdown-overlay {
@@ -115,14 +115,11 @@
 </head>
 <body>
 
-    <div id="version-stamp">v7.0 : Hybrid Audio</div>
-    <div id="audio-status">Audio: Ready</div>
+    <div id="version-stamp">v8.0 : Grand Finale & Audio Fix</div>
+    <div id="audio-status">Audio: Initializing...</div>
 
-    <!-- 1순위: 파일 재생 -->
-    <audio id="bgmFile" loop preload="auto">
-        <source src="./bgm.m4a" type="audio/mp4">
-        <source src="./bgm.mp3" type="audio/mpeg">
-    </audio>
+    <!-- [이슈 1 해결] 다중 source 태그 삭제, 오직 bgm.mp3만 직접 참조 -->
+    <audio id="bgm" loop preload="auto" src="./bgm.mp3"></audio>
 
     <canvas id="gameCanvas"></canvas>
 
@@ -161,7 +158,7 @@
         <h1 class="text-6xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-red-600 filter drop-shadow-lg text-center">
             MATH SHOOTER
         </h1>
-        <p class="text-gray-300 mb-8 text-center text-sm">v7.0 | 소리가 안 나면 기계음으로 자동 전환됩니다.</p>
+        <p class="text-gray-300 mb-8 text-center text-sm">v8.0 | 피날레 효과 개선 & 오디오 안정화</p>
         
         <button class="btn" onclick="startGame('easy')">
             워밍업
@@ -190,48 +187,52 @@
     </div>
 
     <div id="clear-screen">
-        <h2 id="clearTitle" class="text-6xl font-black mb-2 drop-shadow-lg text-center">CONGRATULATIONS!</h2>
-        <p id="clearTime" class="text-4xl font-bold text-yellow-300 mb-4 drop-shadow-md">TOTAL TIME: 000s</p>
-        <p id="clearDesc" class="text-xl text-white mb-8 text-center px-4 leading-relaxed">...</p>
-        <button class="btn" id="finalRestartBtn">처음으로 돌아가기</button>
+        <h2 id="clearTitle" class="text-6xl font-black mb-2 drop-shadow-lg text-center z-50">CONGRATULATIONS!</h2>
+        <p id="clearTime" class="text-4xl font-bold text-yellow-300 mb-4 drop-shadow-md z-50">TOTAL TIME: 000s</p>
+        <p id="clearDesc" class="text-xl text-white mb-8 text-center px-4 leading-relaxed z-50">...</p>
+        <button class="btn z-50" id="finalRestartBtn">처음으로 돌아가기</button>
     </div>
 
     <script>
-        // ---------------- 하이브리드 오디오 시스템 (v7.0) ----------------
-        const bgmFile = document.getElementById('bgmFile');
+        // ---------------- 오디오 시스템 (v8.0 단일 MP3 구조) ----------------
+        const bgmAudio = document.getElementById('bgm');
         const statusEl = document.getElementById('audio-status');
-        let useSynth = false; // 파일 실패 시 true로 변경
+        let useSynth = false; 
         let isSoundOn = false;
         
-        // Synth 관련 변수
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         let audioCtx;
         let masterGain;
         let bgmInterval = null;
         let beatCount = 0;
 
-        // 1. 파일 로딩 에러 감지 -> Synth 모드로 자동 전환
-        bgmFile.addEventListener('error', function(e) {
-            console.warn("오디오 파일 로드 실패. 신디사이저 모드로 전환합니다.");
+        bgmAudio.addEventListener('loadstart', () => { statusEl.innerText = "Audio: Loading mp3..."; });
+        bgmAudio.addEventListener('canplaythrough', () => { 
+            statusEl.innerText = "Audio: MP3 Ready (OK)";
+            statusEl.style.color = "#00ff00";
+        });
+        
+        bgmAudio.addEventListener('error', function(e) {
+            console.warn("bgm.mp3 로드 실패. Synth 모드로 전환합니다.");
             useSynth = true;
-            statusEl.innerText = "Audio: Synth Mode (File missing)";
-        }, true); // 캡처링 단계에서 에러 포착
+            statusEl.innerText = "Audio: Error -> Synth Mode";
+            statusEl.style.color = "#ffaa00";
+        });
 
-        // 2. 파일 재생 시도 및 실패 처리
         async function tryPlayFile() {
             try {
-                bgmFile.volume = 0.5;
-                await bgmFile.play();
-                statusEl.innerText = "Audio: File Playing";
+                bgmAudio.volume = 0.5;
+                await bgmAudio.play();
+                statusEl.innerText = "Audio: Playing MP3 🎵";
             } catch (err) {
-                console.log("파일 재생 불가 (권한/경로 문제). Synth로 전환.");
+                console.log("재생 권한 에러. Synth로 전환:", err);
                 useSynth = true;
-                statusEl.innerText = "Audio: Synth Mode (Auto)";
                 startSynthBGM();
+                statusEl.innerText = "Audio: Blocked -> Synth Playing";
             }
         }
 
-        // 3. 신디사이저 BGM (사이버펑크 스타일 튜닝)
+        // Synth Logic (대체용 기계음)
         function initSynth() {
             if (!audioCtx) {
                 audioCtx = new AudioContext();
@@ -246,7 +247,6 @@
             if (!audioCtx) return;
             const now = audioCtx.currentTime;
             
-            // Kick (Square Wave for punch)
             const oscKick = audioCtx.createOscillator();
             const gainKick = audioCtx.createGain();
             oscKick.type = 'square';
@@ -259,12 +259,11 @@
             oscKick.start(now);
             oscKick.stop(now + 0.15);
 
-            // Off-beat Bass (Sawtooth)
             if (beatCount % 2 !== 0) {
                 const oscBass = audioCtx.createOscillator();
                 const gainBass = audioCtx.createGain();
                 oscBass.type = 'sawtooth';
-                oscBass.frequency.setValueAtTime(65.41, now); // C2
+                oscBass.frequency.setValueAtTime(65.41, now); 
                 gainBass.gain.setValueAtTime(0.3, now);
                 gainBass.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
                 oscBass.connect(gainBass);
@@ -278,7 +277,7 @@
         function startSynthBGM() {
             initSynth();
             if (bgmInterval) clearInterval(bgmInterval);
-            bgmInterval = setInterval(playSynthNote, 250); // 120 BPM
+            bgmInterval = setInterval(playSynthNote, 250);
         }
 
         function stopSynthBGM() {
@@ -286,23 +285,19 @@
             if (audioCtx) audioCtx.suspend();
         }
 
-        // 4. 통합 토글 함수
         function toggleSound() {
             isSoundOn = !isSoundOn;
             updateSoundIcon();
 
             if (isSoundOn) {
-                // 켜기
                 if (useSynth) {
                     if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
                     startSynthBGM();
                 } else {
-                    // 파일 재생 시도. 실패하면 내부에서 useSynth=true 되고 startSynthBGM 호출됨
                     tryPlayFile();
                 }
             } else {
-                // 끄기
-                bgmFile.pause();
+                bgmAudio.pause();
                 stopSynthBGM();
             }
         }
@@ -322,7 +317,6 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        // UI
         const targetEl = document.getElementById('targetEl');
         const currentEl = document.getElementById('currentEl');
         const hpEl = document.getElementById('hpEl');
@@ -333,7 +327,6 @@
         const messageArea = document.getElementById('message-area');
         const countdownOverlay = document.getElementById('countdown-overlay');
         
-        // Screens
         const startScreen = document.getElementById('start-screen');
         const gameOverScreen = document.getElementById('game-over-screen');
         const pauseScreen = document.getElementById('pause-screen');
@@ -344,7 +337,6 @@
         const failReason = document.getElementById('fail-reason');
         const finalLevelEl = document.getElementById('finalLevel');
 
-        // Leakage Limit
         const DIFFICULTY = {
             easy: { name: "워밍업", speed: 0.8, accel: 0.05, limit: 300 },
             normal: { name: "실전", speed: 1.5, accel: 0.1, limit: 200 },
@@ -372,7 +364,6 @@
             }
         };
 
-        // State
         let currentMode = 'normal';
         let gameActive = false;
         let isPaused = false;
@@ -381,6 +372,7 @@
         let animationId;
         let frames = 0;
         let startTime = 0;
+        let finaleInterval = null; // 피날레 지속 폭죽용
         
         let player, projectiles, numbers, particles, confettiList, stars;
         let currentSum = 0, targetNum = 10, level = 1;
@@ -480,17 +472,21 @@
         }
 
         class Particle {
-            constructor(x, y, color) {
+            constructor(x, y, color, isBig = false) {
                 this.x = x; this.y = y; this.color = color;
-                this.v = {x: (Math.random()-0.5)*6, y: (Math.random()-0.5)*6};
+                // 폭죽 모드일 때 속도 및 크기 증가
+                let speedMult = isBig ? 12 : 6;
+                this.v = {x: (Math.random()-0.5)*speedMult, y: (Math.random()-0.5)*speedMult};
                 this.alpha = 1;
+                this.size = isBig ? Math.random()*5 + 3 : 3;
+                this.decay = isBig ? 0.015 : 0.03;
             }
             update() {
                 this.x += this.v.x * timeScale; 
                 this.y += this.v.y * timeScale;
-                this.alpha -= 0.03 * timeScale;
-                ctx.save(); ctx.globalAlpha = this.alpha;
-                ctx.beginPath(); ctx.arc(this.x, this.y, 3, 0, Math.PI*2);
+                this.alpha -= this.decay * timeScale;
+                ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
                 ctx.fillStyle = this.color; ctx.fill(); ctx.restore();
             }
         }
@@ -503,297 +499,15 @@
                 let h = Math.random() * (max - min) + min;
                 if(h > 360) h -= 360;
                 this.color = `hsl(${h}, 100%, 60%)`;
-                this.size = Math.random()*10+5;
-                this.v = {x: (Math.random()-0.5)*2, y: Math.random()*3+2};
+                this.size = Math.random()*15+5; // 크기 확대
+                this.v = {x: (Math.random()-0.5)*3, y: Math.random()*5+3};
                 this.rot = Math.random()*360;
-                this.rotSpd = (Math.random()-0.5)*5;
+                this.rotSpd = (Math.random()-0.5)*10;
             }
             update() {
-                this.y += this.v.y; this.x += Math.sin(this.y*0.01);
-                this.rot += this.rotSpd;
+                this.y += this.v.y * timeScale; 
+                this.x += Math.sin(this.y*0.01) * 2 * timeScale;
+                this.rot += this.rotSpd * timeScale;
                 if(this.y > canvas.height) { this.y = -20; this.x = Math.random()*canvas.width; }
                 
                 ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.rot*Math.PI/180);
-                ctx.fillStyle = this.color; ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
-                ctx.restore();
-            }
-        }
-
-        class Star {
-            constructor() {
-                this.x = Math.random()*canvas.width; this.y = Math.random()*canvas.height;
-                this.r = Math.random()*1.5; this.v = Math.random()*2+0.5;
-            }
-            update() {
-                this.y += this.v * timeScale;
-                if(this.y > canvas.height) this.y = 0;
-                ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
-                ctx.fillStyle = 'white'; ctx.fill();
-            }
-        }
-
-        // ------------------ Main Logic ------------------
-
-        function startGame(mode) {
-            currentMode = mode;
-            modeDisplay.innerText = `${DIFFICULTY[mode].name} MODE`;
-            startScreen.classList.add('hidden');
-            
-            // 사운드 기본 켜기 (하이브리드 시스템 작동)
-            if(!isSoundOn) toggleSound(); 
-            init();
-        }
-
-        function togglePause() {
-            if (!gameActive || isLevelClearing) return;
-            isPaused = !isPaused;
-            
-            if (isPaused) {
-                pauseScreen.style.display = 'flex';
-                // 일시정지 시 음악도 멈춤
-                bgmFile.pause();
-                stopSynthBGM();
-            } else {
-                pauseScreen.style.display = 'none';
-                // 재개 시 소리 상태에 따라 다시 켬
-                if (isSoundOn) {
-                    if (useSynth) startSynthBGM();
-                    else bgmFile.play();
-                }
-            }
-        }
-
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'p' || e.key === 'P') togglePause();
-        });
-
-        function init() {
-            player = new Player();
-            projectiles = []; numbers = []; particles = []; confettiList = []; stars = [];
-            currentSum = 0; level = 1; targetNum = 10;
-            timeScale = 1.0; isLevelClearing = false;
-            leakageSum = 0;
-            startTime = Date.now();
-            
-            for(let i=0; i<50; i++) stars.push(new Star());
-            
-            updateUI();
-            gameActive = true;
-            isPaused = false;
-            animate();
-        }
-
-        function updateUI() {
-            targetEl.innerText = targetNum;
-            currentEl.innerText = currentSum;
-            hpEl.innerText = Math.max(0, player.hp);
-            levelEl.innerText = `${level} / 10`;
-            currentEl.style.color = (currentSum > targetNum*0.8) ? '#ff9800' : '#ffeb3b';
-            
-            const limit = DIFFICULTY[currentMode].limit;
-            leakageEl.innerText = leakageSum;
-            limitEl.innerText = limit;
-            
-            if (leakageSum >= limit * 0.8) leakageEl.style.color = 'red';
-            else leakageEl.style.color = '#ff5555';
-        }
-
-        function spawnNumber() {
-            if(isLevelClearing) return;
-            let rate = (currentMode === 'easy') ? 80 : (currentMode === 'hard' ? 40 : 60);
-            if(frames % rate === 0) {
-                numbers.push(new NumberBlock(Math.random()*(canvas.width-40)+20, -50));
-            }
-        }
-
-        function checkHit() {
-            if(!isLevelClearing) {
-                numbers.forEach((n, ni) => {
-                    const dist = Math.hypot(player.x - n.x, player.y - n.y);
-                    if(dist < player.radius + n.radius) {
-                        player.hp -= 20; player.hit(); updateUI();
-                        for(let k=0; k<10; k++) particles.push(new Particle(player.x, player.y, 'red'));
-                        numbers.splice(ni, 1);
-                        if(player.hp <= 0) gameOver("HP 소진");
-                    }
-                });
-            }
-
-            projectiles.forEach((p, pi) => {
-                if(p.dead) return;
-                numbers.forEach((n, ni) => {
-                    if(p.dead) return; 
-                    const dist = Math.hypot(p.x - n.x, p.y - n.y);
-                    if(dist < p.radius + n.radius) {
-                        p.dead = true;
-                        
-                        if (n.isJoker) {
-                            for(let k=0; k<10; k++) particles.push(new Particle(n.x, n.y, '#a020f0'));
-                            currentSum = Math.max(0, currentSum + n.value); 
-                            showMessage(`${n.value} (MINUS!)`, '#a020f0');
-                            updateUI();
-                        } else {
-                            for(let k=0; k<8; k++) particles.push(new Particle(n.x, n.y, n.color));
-                            handleScore(n.value);
-                        }
-                        numbers.splice(ni, 1);
-                    }
-                });
-            });
-            
-            projectiles = projectiles.filter(p => !p.dead && p.y > 0);
-            
-            for (let i = numbers.length - 1; i >= 0; i--) {
-                const n = numbers[i];
-                if (n.y > canvas.height + 50) {
-                    if (!n.isJoker) { 
-                        leakageSum += n.value;
-                        updateUI();
-                        if (leakageSum >= DIFFICULTY[currentMode].limit) {
-                            gameOver("너무 많은 숫자를 놓침!");
-                        }
-                    }
-                    numbers.splice(i, 1);
-                }
-            }
-        }
-
-        function handleScore(val) {
-            if(isLevelClearing) return; 
-
-            if(currentSum + val === targetNum) {
-                currentSum += val;
-                updateUI();
-                
-                if(targetNum >= 100) {
-                    doGameClear();
-                } else {
-                    doLevelUp();
-                }
-            } else if (currentSum + val > targetNum) {
-                currentSum = 0; 
-                updateUI();
-                showMessage("BUSTED! RESET", '#ff0055');
-            } else {
-                currentSum += val;
-                updateUI();
-            }
-        }
-
-        function doLevelUp() {
-            isLevelClearing = true;
-            timeScale = 0.1; 
-            level++; targetNum += 10; currentSum = 0; updateUI();
-            
-            for(let i=0; i<30; i++) particles.push(new Particle(canvas.width/2, canvas.height/2, 'white'));
-            numbers = []; projectiles = [];
-
-            let count = 5;
-            const overlay = document.getElementById('countdown-overlay');
-            function tick() {
-                if(count > 0) {
-                    overlay.innerHTML = `<div class="countdown-number">${count}</div>`;
-                    count--;
-                    setTimeout(tick, 1000);
-                } else {
-                    overlay.innerHTML = `<div class="countdown-number" style="color:#00f260; font-size:8rem">START!</div>`;
-                    setTimeout(() => {
-                        overlay.innerHTML = '';
-                        timeScale = 1.0; isLevelClearing = false;
-                        showMessage(`LEVEL ${level} GO!`, '#00ffff');
-                    }, 1000);
-                }
-            }
-            tick();
-        }
-
-        function doGameClear() {
-            isLevelClearing = true;
-            timeScale = 0.1; 
-            
-            const finale = FINALE_CONFIG[currentMode] || FINALE_CONFIG['normal'];
-            clearTitle.innerText = finale.title;
-            clearTitle.className = `text-6xl font-black mb-4 drop-shadow-lg ${finale.colorClass}`;
-            clearDesc.innerHTML = finale.desc;
-            
-            const endTime = Date.now();
-            const totalSeconds = ((endTime - startTime) / 1000).toFixed(1);
-            clearTime.innerText = `TOTAL TIME: ${totalSeconds}s`;
-            
-            // [중요] 피날레 화면 강제 표시
-            clearScreen.style.display = 'flex';
-            
-            for(let i=0; i<150; i++) confettiList.push(new Confetti(finale.hue));
-        }
-
-        function gameOver(reason) {
-            gameActive = false;
-            failReason.innerText = `원인: ${reason}`;
-            finalLevelEl.innerText = `${level} / 10`;
-            gameOverScreen.classList.remove('hidden');
-            
-            bgmFile.pause();
-            stopSynthBGM();
-        }
-
-        function showMessage(msg, color) {
-            const el = document.getElementById('message-area');
-            el.innerText = msg; el.style.color = color; el.style.opacity = 1;
-            setTimeout(() => el.style.opacity = 0, 1500);
-        }
-
-        function animate() {
-            if (!gameActive || isPaused) {
-                if (gameActive && isPaused) requestAnimationFrame(animate);
-                return;
-            }
-            
-            requestAnimationFrame(animate);
-            ctx.fillStyle = 'rgba(5, 5, 5, 0.3)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            stars.forEach(s => s.update());
-            
-            if(keys.ArrowRight && player.x < canvas.width-20) player.velocity.x = player.speed;
-            else if(keys.ArrowLeft && player.x > 20) player.velocity.x = -player.speed;
-            else player.velocity.x = 0;
-            if(keys.ArrowUp && player.y > player.height) player.velocity.y = -player.speed;
-            else if(keys.ArrowDown && player.y < canvas.height-player.height) player.velocity.y = player.speed;
-            else player.velocity.y = 0;
-            
-            player.update();
-            particles = particles.filter(p => p.alpha > 0);
-            particles.forEach(p => p.update());
-            confettiList.forEach(c => c.update());
-            projectiles.forEach(p => p.update());
-            numbers.forEach(n => n.update());
-            checkHit();
-            spawnNumber();
-            frames++;
-        }
-
-        window.addEventListener('keydown', e => {
-            if(e.code === 'Space') { if(gameActive && !isPaused) projectiles.push(new Projectile(player.x, player.y-20)); keys.Space = true; }
-            if(keys.hasOwnProperty(e.code)) keys[e.code] = true;
-        });
-        window.addEventListener('keyup', e => {
-            if(e.code === 'Space') keys.Space = false;
-            if(keys.hasOwnProperty(e.code)) keys[e.code] = false;
-        });
-        window.addEventListener('touchstart', (e) => {
-             if(gameActive && !isPaused) { player.x = e.touches[0].clientX; projectiles.push(new Projectile(player.x, player.y-20)); }
-        });
-        window.addEventListener('touchmove', (e) => {
-            if(gameActive && !isPaused) { e.preventDefault(); player.x = e.touches[0].clientX; }
-        }, {passive: false});
-
-        document.getElementById('restartBtn').addEventListener('click', () => {
-            gameOverScreen.classList.add('hidden');
-            startScreen.classList.remove('hidden');
-        });
-        document.getElementById('finalRestartBtn').addEventListener('click', () => {
-            clearScreen.style.display = 'none';
-            startScreen.classList.remove('hidden');
-        });
-    </script>
-</body>
-</html>
